@@ -1,0 +1,36 @@
+# Local stack: indexer/API on :3040, web on :3000.
+#   START_BLOCK_HEIGHT=<launch block> docker compose up --build
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      CHAIN_ID: mainnet
+      SOCIAL_ACCOUNT_ID: ${SOCIAL_ACCOUNT_ID:-social}
+      START_BLOCK_HEIGHT: ${START_BLOCK_HEIGHT:-latest}
+      FASTNEAR_AUTH_BEARER_TOKEN: ${FASTNEAR_AUTH_BEARER_TOKEN:-}
+      PUBLIC_URL: http://localhost:3040
+      RUST_LOG: info
+    volumes:
+      - social-data:/data
+    ports:
+      - "3040:3040"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3040
+        NEXT_PUBLIC_SOCIAL_ACCOUNT_ID: ${SOCIAL_ACCOUNT_ID:-social}
+    environment:
+      API_INTERNAL_URL: http://server:3040
+    ports:
+      - "3000:3000"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  social-data:

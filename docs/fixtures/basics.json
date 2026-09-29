@@ -1,0 +1,127 @@
+{
+  "description": "Profiles, posts, replies with backlink, likes, reposts, quotes, follows, feeds and notifications.",
+  "blocks": [
+    {
+      "height": 100,
+      "time_ms": 1759140000000,
+      "actions": [
+        {
+          "author": "alice.near",
+          "tx": "t1",
+          "args": {
+            "profile/name": "Alice",
+            "profile/about": "Hi",
+            "profile/avatar": "fastfs://alice.near/social/media/a.webp",
+            "profile/links/github": "alice"
+          }
+        },
+        { "author": "bob.near", "tx": "t1b", "args": { "profile/name": "Bob" } }
+      ]
+    },
+    {
+      "height": 101,
+      "time_ms": 1759140001000,
+      "actions": [
+        { "author": "alice.near", "tx": "t2", "args": { "post/1": { "text": "Hello #NEAR @bob.near" } } }
+      ]
+    },
+    {
+      "height": 102,
+      "time_ms": 1759140002000,
+      "actions": [
+        {
+          "author": "bob.near",
+          "tx": "t3",
+          "args": {
+            "post/2": { "text": "Welcome!", "reply_to": "alice.near/1", "root": "alice.near/1" },
+            "reply/alice.near/1/2": {},
+            "like/alice.near/1": {},
+            "graph/follow/alice.near": {}
+          }
+        }
+      ]
+    },
+    {
+      "height": 103,
+      "time_ms": 1759140003000,
+      "actions": [
+        {
+          "author": "carol.near",
+          "tx": "t4",
+          "args": {
+            "post/3": { "text": "Quoting", "quote": "alice.near/1" },
+            "repost/alice.near/1": {},
+            "graph/follow/bob.near": {}
+          }
+        },
+        { "author": "alice.near", "tx": "t5", "args": { "profile/about": null } }
+      ]
+    },
+    {
+      "height": 104,
+      "time_ms": 1759140004000,
+      "actions": [
+        { "author": "bob.near", "tx": "t6", "args": { "post/4": { "text": "Bob's own post #near" } } }
+      ]
+    }
+  ],
+  "expect": {
+    "counts": { "accounts": 3, "posts": 4, "likes": 1, "follows": 2 },
+    "profiles": {
+      "alice.near": {
+        "name": "Alice",
+        "about": null,
+        "avatar": "fastfs://alice.near/social/media/a.webp",
+        "links": { "github": "alice" }
+      },
+      "bob.near": { "name": "Bob", "about": null, "links": {} }
+    },
+    "posts": {
+      "alice.near/1": { "live": true, "likes": 1, "reposts": 1, "replies": 1, "quotes": 1, "edited": false, "created_block": 101 },
+      "bob.near/2": { "live": true, "reply_to": "alice.near/1", "text": "Welcome!" },
+      "carol.near/3": { "live": true, "reply_to": null }
+    },
+    "follows": {
+      "alice.near": { "following": [], "followers": ["bob.near"] },
+      "bob.near": { "following": ["alice.near"], "followers": ["carol.near"] }
+    },
+    "feeds": {
+      "global": ["post:bob.near/4", "post:carol.near/3", "post:alice.near/1"],
+      "following:carol.near": ["post:bob.near/4", "repost:carol.near:alice.near/1", "post:carol.near/3"],
+      "following:bob.near": ["post:bob.near/4", "post:alice.near/1"],
+      "hashtag:near": ["post:bob.near/4", "post:alice.near/1"],
+      "replies:alice.near/1": ["post:bob.near/2"],
+      "quotes:alice.near/1": ["post:carol.near/3"],
+      "account:alice.near:posts": ["post:alice.near/1"],
+      "account:carol.near:posts": ["repost:carol.near:alice.near/1", "post:carol.near/3"],
+      "account:bob.near:replies": ["post:bob.near/2"],
+      "likes:bob.near": ["post:alice.near/1"]
+    },
+    "notifications": {
+      "alice.near": [
+        ["repost", ["carol.near"], "alice.near/1"],
+        ["quote", ["carol.near"], "carol.near/3"],
+        ["reply", ["bob.near"], "bob.near/2"],
+        ["like", ["bob.near"], "alice.near/1"],
+        ["follow", ["bob.near"], null]
+      ],
+      "bob.near": [
+        ["follow", ["carol.near"], null],
+        ["mention", ["alice.near"], "alice.near/1"]
+      ]
+    },
+    "tx": {
+      "t3": [
+        {
+          "status": "ok",
+          "keys": [
+            ["graph/follow/alice.near", "ok"],
+            ["like/alice.near/1", "ok"],
+            ["post/2", "ok"],
+            ["reply/alice.near/1/2", "ignored"]
+          ]
+        }
+      ]
+    }
+  }
+}

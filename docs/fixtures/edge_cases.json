@@ -1,0 +1,94 @@
+{
+  "description": "Like before post, delete/recreate, unlike/relike, re-parenting edits, invalid values, invalid keys, invalid JSON.",
+  "blocks": [
+    { "height": 200, "time_ms": 1759150000000, "actions": [
+      { "author": "bob.near", "tx": "e1", "args": { "like/alice.near/10": {} } }
+    ] },
+    { "height": 201, "time_ms": 1759150001000, "actions": [
+      { "author": "alice.near", "tx": "e2", "args": { "post/10": { "text": "late" } } }
+    ] },
+    { "height": 202, "time_ms": 1759150002000, "actions": [
+      { "author": "alice.near", "tx": "e3", "args": { "post/11": { "text": "first" } } }
+    ] },
+    { "height": 203, "time_ms": 1759150003000, "actions": [
+      { "author": "alice.near", "tx": "e4", "args": { "post/11": null } }
+    ] },
+    { "height": 204, "time_ms": 1759150004000, "actions": [
+      { "author": "alice.near", "tx": "e5", "args": { "post/11": { "text": "back" } } }
+    ] },
+    { "height": 205, "time_ms": 1759150005000, "actions": [
+      { "author": "bob.near", "tx": "e6", "args": { "like/alice.near/10": null } }
+    ] },
+    { "height": 206, "time_ms": 1759150006000, "actions": [
+      { "author": "bob.near", "tx": "e7", "args": { "like/alice.near/10": {} } }
+    ] },
+    { "height": 207, "time_ms": 1759150007000, "actions": [
+      { "author": "carol.near", "tx": "e8", "args": { "post/20": { "text": "reply to 10", "reply_to": "alice.near/10", "root": "alice.near/10" } } }
+    ] },
+    { "height": 208, "time_ms": 1759150008000, "actions": [
+      { "author": "carol.near", "tx": "e9", "args": { "post/20": { "text": "now a reply to 11", "reply_to": "alice.near/11", "root": "alice.near/11" } } }
+    ] },
+    { "height": 209, "time_ms": 1759150009000, "actions": [
+      { "author": "alice.near", "tx": "e10", "args": {
+        "post/12": { "text": 5 },
+        "profile/name": "A",
+        "profile/location": { "bad": true }
+      } }
+    ] },
+    { "height": 210, "time_ms": 1759150010000, "actions": [
+      { "author": "dave.near", "tx": "e11", "args": {
+        "graph/follow/dave.near": {},
+        "graph/follow/alice.near": "",
+        "whatever/key": 1,
+        "profile/links/Bad": "x"
+      } }
+    ] },
+    { "height": 211, "time_ms": 1759150011000, "actions": [
+      { "author": "eve.near", "tx": "e12", "args_raw": "[1, 2]" }
+    ] }
+  ],
+  "expect": {
+    "counts": { "accounts": 4, "posts": 3, "likes": 1, "follows": 0 },
+    "profiles": {
+      "alice.near": { "name": "A", "location": null }
+    },
+    "posts": {
+      "alice.near/10": { "live": true, "likes": 1, "replies": 0, "created_block": 201 },
+      "alice.near/11": { "live": true, "text": "back", "edited": true, "replies": 1, "created_block": 202 },
+      "alice.near/12": { "live": false },
+      "carol.near/20": { "live": true, "reply_to": "alice.near/11", "edited": true }
+    },
+    "follows": {
+      "alice.near": { "following": [], "followers": [] },
+      "dave.near": { "following": [], "followers": [] }
+    },
+    "feeds": {
+      "global": ["post:alice.near/11", "post:alice.near/10"],
+      "account:alice.near:posts": ["post:alice.near/11", "post:alice.near/10"],
+      "replies:alice.near/10": [],
+      "replies:alice.near/11": ["post:carol.near/20"],
+      "likes:bob.near": ["post:alice.near/10"],
+      "likers:alice.near/10": ["bob.near"]
+    },
+    "notifications": {
+      "alice.near": [
+        ["reply", ["carol.near"], "carol.near/20"],
+        ["like", ["bob.near"], "alice.near/10"]
+      ]
+    },
+    "tx": {
+      "e10": [
+        { "status": "ok", "keys": [["post/12", "invalid"], ["profile/location", "invalid"], ["profile/name", "ok"]] }
+      ],
+      "e11": [
+        { "status": "ok", "keys": [
+          ["graph/follow/alice.near", "invalid"],
+          ["graph/follow/dave.near", "invalid"],
+          ["profile/links/Bad", "invalid"],
+          ["whatever/key", "ignored"]
+        ] }
+      ],
+      "e12": [ { "status": "invalid_json", "keys": [] } ]
+    }
+  }
+}

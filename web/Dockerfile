@@ -1,0 +1,33 @@
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+# NEXT_PUBLIC_* values are compiled into the browser bundle.
+ARG NEXT_PUBLIC_API_URL=http://localhost:3040
+ARG NEXT_PUBLIC_NETWORK_ID=mainnet
+ARG NEXT_PUBLIC_SOCIAL_ACCOUNT_ID=social
+ARG NEXT_PUBLIC_RPC_URL=https://rpc.mainnet.fastnear.com
+ARG NEXT_PUBLIC_FASTFS_GATEWAY=https://main.fastfs.io
+ARG NEXT_PUBLIC_KEY_ALLOWANCE_NEAR=1
+ARG NEXT_PUBLIC_SITE_URL=
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    NEXT_PUBLIC_NETWORK_ID=$NEXT_PUBLIC_NETWORK_ID \
+    NEXT_PUBLIC_SOCIAL_ACCOUNT_ID=$NEXT_PUBLIC_SOCIAL_ACCOUNT_ID \
+    NEXT_PUBLIC_RPC_URL=$NEXT_PUBLIC_RPC_URL \
+    NEXT_PUBLIC_FASTFS_GATEWAY=$NEXT_PUBLIC_FASTFS_GATEWAY \
+    NEXT_PUBLIC_KEY_ALLOWANCE_NEAR=$NEXT_PUBLIC_KEY_ALLOWANCE_NEAR \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_OUTPUT=standalone \
+    NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+FROM node:22-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
+EXPOSE 3000
+# API_INTERNAL_URL (server-side fetches) is read at runtime.
+CMD ["node", "server.js"]

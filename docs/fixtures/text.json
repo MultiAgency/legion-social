@@ -1,0 +1,10 @@
+[
+  { "text": "gm @bob.near, check #NEAR https://near.org.", "mentions": ["bob.near"], "hashtags": ["near"], "urls": ["https://near.org"] },
+  { "text": "@alice.near. @alice.near @Bad @x a@b.near", "mentions": ["alice.near"], "hashtags": [], "urls": [] },
+  { "text": "https://x.com/@bob.near/#tag and https://a.io/#frag #real @carol.near", "mentions": ["carol.near"], "hashtags": ["real"], "urls": ["https://x.com/@bob.near/#tag", "https://a.io/#frag"] },
+  { "text": "#Привет,#日本 x#no &#38; #ñandú #123 #web3_dev", "mentions": [], "hashtags": ["привет", "日本", "ñandú", "web3_dev"], "urls": [] },
+  { "text": "(see https://near.org/a?b=1) \"https://q.io\" https://", "mentions": [], "hashtags": [], "urls": ["https://near.org/a?b=1", "https://q.io"] },
+  { "text": "line1\n@dave.near\n#tag", "mentions": ["dave.near"], "hashtags": ["tag"], "urls": [] },
+  { "text": "@0000000000000000000000000000000000000000000000000000000000000000 hi", "mentions": ["0000000000000000000000000000000000000000000000000000000000000000"], "hashtags": [], "urls": [] },
+  { "text": "@near_ @a-b.near- #a_", "mentions": ["near", "a-b.near"], "hashtags": ["a_"], "urls": [] }
+]

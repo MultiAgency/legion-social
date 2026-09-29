@@ -1,0 +1,6 @@
+/target
+/data
+.env
+node_modules
+.next
+/data-demo
