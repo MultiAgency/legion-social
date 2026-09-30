@@ -31,7 +31,7 @@ sudo apt update
 sudo apt install -y build-essential pkg-config libssl-dev git curl nginx
 # Rust ≥ 1.91 (rustup, as your deploy user)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . ~/.cargo/env
-# Node.js 22 LTS (NodeSource puts node in /usr/bin, which the unit expects)
+# Node.js 22 LTS, ≥ 22.12 (any install method; deploy.sh copies the node it builds with to /opt/near-social/bin)
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
 ```
 
@@ -115,16 +115,14 @@ curl -s https://near.social/skill.md | head -5
 - **Update:**
 
   ```bash
-  git pull && deploy/deploy.sh             # or: deploy/deploy.sh server | web
+  deploy/update.sh               # git pull, rebuild only what changed, restart, health check
+  deploy/update.sh web           # force one part (server | web | all)
+  deploy/update.sh --no-pull     # after copying files with rsync instead of git
+  deploy/update.sh --rollback    # back to the previous build (both, or: --rollback server|web)
   ```
-- **Roll back the web app:**
+- **Roll back:** `deploy/update.sh --rollback [server|web]`. It restores the previous API binary
+  and/or points the web app back to the previous release (3 are kept).
 
-  ```bash
-  ls -1t /opt/near-social/web-releases
-  sudo ln -sfn /opt/near-social/web-releases/<previous> /opt/near-social/web && sudo systemctl restart near-social-web
-  ```
-
-  The previous 3 releases are kept.
 - **Back up:**
 
   ```bash

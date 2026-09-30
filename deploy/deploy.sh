@@ -35,16 +35,30 @@ if [ "$created" = 1 ]; then
   exit 1
 fi
 
+# Remembers which commit each part was built from, so deploy/update.sh rebuilds only what changed.
+record_commit() {
+  if git rev-parse --verify HEAD >/dev/null 2>&1; then
+    git rev-parse HEAD | sudo tee "$PREFIX/deployed-$1.commit" >/dev/null
+  fi
+}
+
 if [ "$TARGET" = all ] || [ "$TARGET" = server ]; then
   echo "==> Building the API"
   cargo build --release --locked -p near-social-server
+  # Keep the previous build for `deploy/update.sh --rollback`.
+  if [ -f "$PREFIX/bin/near-social-server" ]; then
+    sudo cp -p "$PREFIX/bin/near-social-server" "$PREFIX/bin/near-social-server.prev"
+  fi
   # `install` replaces the file (no "text file busy"); the running process keeps the old inode.
   sudo install -m 755 target/release/near-social-server "$PREFIX/bin/near-social-server"
   sudo systemctl restart near-social-server
+  record_commit server
 fi
 
 if [ "$TARGET" = all ] || [ "$TARGET" = web ]; then
   echo "==> Building the web app"
+  node_bin=$(command -v node) || { echo "node is not in PATH" >&2; exit 1; }
+  echo "    node $(node --version) ($node_bin)"
   set -a; . "$ETC/web.env"; set +a
   (cd web && npm ci && NEXT_OUTPUT=standalone npm run build)
   release="$PREFIX/web-releases/$(date -u +%Y%m%d%H%M%S)"
@@ -57,7 +71,11 @@ if [ "$TARGET" = all ] || [ "$TARGET" = web ]; then
   sudo rm -rf "$release/.next/cache"
   sudo ln -s /var/cache/near-social-web "$release/.next/cache"
   sudo ln -sfn "$release" "$PREFIX/web"
+  # The service runs this copy of the node that built the app (nvm installs live under /home,
+  # which the service can't see).
+  sudo install -m 755 "$(readlink -f "$node_bin")" "$PREFIX/bin/node"
   sudo systemctl restart near-social-web
+  record_commit web
   # Keep the newest releases for quick rollback (re-point the symlink and restart).
   ls -1dt "$PREFIX"/web-releases/* | tail -n +$((KEEP_RELEASES + 1)) | xargs -r sudo rm -rf
 fi
