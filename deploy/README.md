@@ -1,7 +1,7 @@
 # Deploying near.social (systemd + nginx + Cloudflare)
 
 ```
-browser / agents ──▶ Cloudflare ──▶ nginx :443 ─┬─ near.social      ──▶ near-social-web    127.0.0.1:3000  (Next.js)
+browser / agents ──▶ Cloudflare ──▶ nginx :443 ─┬─ near.social      ──▶ near-social-web    127.0.0.1:3030  (Next.js)
                                                 └─ api2.near.social ──▶ near-social-server 127.0.0.1:3040  (Rust API + indexer)
 near-social-server ──▶ mainnet.neardata.xyz (blocks), rpc.mainnet.fastnear.com, api.near.social (legacy SocialDB API, for import)
 near-social-web     ──▶ 127.0.0.1:3040 (SSR), legacy.near.social (/magic proxy)
@@ -142,5 +142,11 @@ curl -s https://near.social/skill.md | head -5
   2. Set `DENYLIST_PATH=/etc/near-social/denylist.txt` in `server.env`.
   3. Restart the server once. After that, edits to the file are picked up automatically within
      30 s.
+- **Change ports** (defaults 3040 for the API, 3030 for the web app):
+  - Web app: set `PORT` in `web.env`.
+  - API: set `PORT` in `server.env`, and update `API_INTERNAL_URL` in `web.env` to match.
+
+  Then update the matching `upstream` in the nginx config, reload nginx, and restart the service.
+  Neither needs a rebuild.
 - **Change web build settings:** anything in `web.env` except `API_INTERNAL_URL` is compiled in
   at build time. After editing it, run `deploy/deploy.sh web`.

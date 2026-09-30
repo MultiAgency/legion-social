@@ -62,7 +62,12 @@ if [ "$TARGET" = all ] || [ "$TARGET" = web ]; then
   ls -1dt "$PREFIX"/web-releases/* | tail -n +$((KEEP_RELEASES + 1)) | xargs -r sudo rm -rf
 fi
 
+# Ports from the env files (defaults 3040 / 3030).
+env_port() { sudo sed -n 's/^PORT=//p' "$1" | tail -n 1; }
+api_port=$(env_port "$ETC/server.env"); api_port=${api_port:-3040}
+web_port=$(env_port "$ETC/web.env"); web_port=${web_port:-3030}
+
 sleep 2
 systemctl --no-pager --lines=0 status near-social-server near-social-web || true
-echo "==> API status"; curl -fsS http://127.0.0.1:3040/v1/status || echo "(API not responding yet)"
-echo; echo "==> Web"; curl -fsS -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:3000/ || echo "(web not responding yet)"
+echo "==> API status (:$api_port)"; curl -fsS "http://127.0.0.1:$api_port/v1/status" || echo "(API not responding yet)"
+echo; echo "==> Web (:$web_port)"; curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "http://127.0.0.1:$web_port/" || echo "(web not responding yet)"

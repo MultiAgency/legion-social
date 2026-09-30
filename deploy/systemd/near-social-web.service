@@ -7,8 +7,9 @@ After=network-online.target near-social-server.service
 Type=simple
 User=nearsocial
 Group=nearsocial
+# Defaults; values in the EnvironmentFile (e.g. PORT) take precedence over Environment=.
+Environment=NODE_ENV=production PORT=3030 HOSTNAME=127.0.0.1 NEXT_TELEMETRY_DISABLED=1
 EnvironmentFile=/etc/near-social/web.env
-Environment=NODE_ENV=production PORT=3000 HOSTNAME=127.0.0.1 NEXT_TELEMETRY_DISABLED=1
 # /opt/near-social/web is a symlink to the current release (deploy/deploy.sh).
 WorkingDirectory=/opt/near-social/web
 # Adjust if node isn't in /usr/bin (e.g. installed with nvm).
