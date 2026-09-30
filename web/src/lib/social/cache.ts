@@ -23,6 +23,11 @@ function patchPost(p: Post, key: string, fn: PostFn): Post {
     const q = fn(next.quote);
     if (q !== next.quote) next = { ...next, quote: q };
   }
+  // A linked near.social post, shown like a quote.
+  if (next.link?.post && next.link.post.key === key) {
+    const q = fn(next.link.post);
+    if (q !== next.link.post) next = { ...next, link: { ...next.link, post: q } };
+  }
   return next;
 }
 
@@ -49,7 +54,7 @@ function hasPostField(item: unknown): item is WithPost {
   return typeof item === "object" && item !== null && "post" in item;
 }
 
-/** Maps every post (and quoted post) with `key` in any supported query data shape. */
+/** Maps every post (and quoted or linked post) with `key` in any supported query data shape. */
 export function mapPostsInData<T>(data: T, key: string, fn: PostFn): T {
   if (isInfinite(data)) {
     let changed = false;
@@ -89,7 +94,10 @@ export function patchPostEverywhere(qc: QueryClient, key: string, fn: PostFn): v
   );
 }
 
-/** Removes feed items showing post `key` (posts and reposts of it); marks quotes unavailable. */
+/**
+ * Removes feed items showing post `key` (posts and reposts of it); marks quotes unavailable and
+ * drops links to it (their URL shows as text again).
+ */
 export function removePostEverywhere(qc: QueryClient, key: string): void {
   qc.setQueriesData({ queryKey: qk.feeds }, (old: unknown) => {
     if (!isInfinite(old)) return old;
@@ -109,10 +117,12 @@ export function removePostEverywhere(qc: QueryClient, key: string): void {
 }
 
 function mapQuotes<T>(data: T, key: string): T {
-  const unquote = (p: Post): Post =>
-    p.quote && p.quote.key === key && isFullPost(p.quote)
-      ? { ...p, quote: { key, unavailable: true } }
-      : p;
+  const unquote = (p: Post): Post => {
+    if (p.quote && p.quote.key === key && isFullPost(p.quote)) {
+      return { ...p, quote: { key, unavailable: true } };
+    }
+    return p.link?.post?.key === key ? { ...p, link: null } : p;
+  };
   if (isInfinite(data)) {
     let changed = false;
     const pages = data.pages.map((page) => {

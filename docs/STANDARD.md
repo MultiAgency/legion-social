@@ -256,6 +256,11 @@ Markdown. Line breaks are kept. Three kinds of tokens are recognised, in this or
 Mentions and hashtags are derived from the text by indexers. There is no separate "notify" key,
 so they can't be spoofed or go out of sync with the text.
 
+Clients MAY render one URL of a post as a preview (non-normative; the reference indexer's rules
+are in API.md, `link`). The reference indexer uses the last URL: a link to another post on this
+site shows that post like a quote, and other links become a web card, a YouTube embed or a
+near.fm player. Previews are derived when read and are never stored on chain.
+
 ---
 
 ## 6. Derived data (reference indexer, non-normative)

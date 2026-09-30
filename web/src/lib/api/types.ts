@@ -76,6 +76,65 @@ export interface PostViewerFlags {
   reposted: boolean;
 }
 
+/** An Open Graph card. `image` is the page's original image URL (shown via `proxiedImage`). */
+export interface CardPreview {
+  kind: "card";
+  title: string;
+  description?: string | null;
+  site_name?: string | null;
+  image?: string | null;
+  /** Wide image above the text; otherwise a small square image on the left. */
+  large: boolean;
+}
+
+export interface YoutubePreview {
+  kind: "youtube";
+  video_id: string;
+  /** Start time in seconds. */
+  start?: number | null;
+  shorts: boolean;
+}
+
+/** A near.fm song. `cover` and `audio` are FastFS gateway URLs. */
+export interface NearFmPreview {
+  kind: "near_fm";
+  uuid: string;
+  title: string;
+  artist: string;
+  artist_url?: string | null;
+  cover?: string | null;
+  audio: string;
+  mime?: string | null;
+  /** Seconds. */
+  duration?: number | null;
+}
+
+/**
+ * The unfurled target of a post's link. `unavailable`: the target is gone (e.g. a hidden or
+ * deleted near.fm song); `none`: fetched, nothing to show.
+ */
+export type LinkPreview =
+  | CardPreview
+  | YoutubePreview
+  | NearFmPreview
+  | { kind: "unavailable" }
+  | { kind: "none" };
+
+/** The one link the server picked from a post's text (docs/API.md). */
+export interface PostLink {
+  /** The URL exactly as it appears in `text`. */
+  url: string;
+  /** A linked near.social post, shown as a quote. */
+  post?: Post | null;
+  /** Absent or null: not unfurled yet, fetch it from `/v1/posts/{account}/{id}/preview`. */
+  preview?: LinkPreview | null;
+}
+
+export interface PostPreviewResponse {
+  url: string;
+  preview: LinkPreview;
+}
+
 export interface Post {
   key: string;
   id: string;
@@ -93,6 +152,8 @@ export interface Post {
   hashtags: string[];
   counts: PostCounts;
   viewer?: PostViewerFlags;
+  /** A link preview or linked post. Always null on nested posts; absent on optimistic ones. */
+  link?: PostLink | null;
   /** Client-only: optimistic post not yet confirmed by the indexer. */
   _pending?: boolean;
 }

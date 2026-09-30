@@ -1,6 +1,9 @@
 //! JSON shapes of docs/API.md, built from borrowed state (serialize while holding the lock).
 
 use crate::model::values::media_url;
+use crate::state::query::LinkTarget;
+use crate::unfurl::{self, Preview, Unfurler};
+use std::sync::Arc;
 use crate::state::query::{FeedEntry, NotifGroup};
 use crate::state::{Aid, NotifKind, Pid, Seq, State};
 use serde::Serialize;
@@ -12,6 +15,9 @@ pub struct Ctx<'a> {
     pub state: &'a State,
     pub viewer: Option<Aid>,
     pub gateway: &'a str,
+    pub site_hosts: &'a [String],
+    /// Link previews come from its cache only (no I/O while hydrating).
+    pub unfurl: Option<&'a Unfurler>,
 }
 
 #[derive(Serialize)]
@@ -101,6 +107,18 @@ pub enum QuoteDto<'a> {
     Unavailable { key: String, unavailable: bool },
 }
 
+/// The link a post is decorated with: a linked post (shown as a quote) or a URL preview.
+#[derive(Serialize)]
+pub struct LinkDto<'a> {
+    /// The URL as written in the post text.
+    pub url: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post: Option<Box<PostDto<'a>>>,
+    /// Absent until fetched: `GET /v1/posts/{account}/{id}/preview`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview: Option<Arc<Preview>>,
+}
+
 #[derive(Serialize)]
 pub struct PostDto<'a> {
     pub key: String,
@@ -119,6 +137,8 @@ pub struct PostDto<'a> {
     pub counts: PostCounts,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub viewer: Option<PostViewer>,
+    /// Only on top-level posts (never on quoted ones).
+    pub link: Option<LinkDto<'a>>,
 }
 
 #[derive(Serialize)]
@@ -266,13 +286,15 @@ impl<'a> Ctx<'a> {
         let post = self.state.post(pid);
         let body = post.body.as_ref()?;
         let (created_seq, created_ms) = post.created?;
-        let quote = body.quote.map(|q| match with_quote.then(|| self.post(q, false)).flatten() {
+        // Quoted posts are shallow: no quote or link of their own.
+        let quote = body.quote.filter(|_| with_quote).map(|q| match self.post(q, false) {
             Some(p) => QuoteDto::Post(Box::new(p)),
             None => QuoteDto::Unavailable {
                 key: self.state.post_key_string(q),
                 unavailable: true,
             },
         });
+        let link = if with_quote { self.link(pid) } else { None };
         Some(PostDto {
             key: self.state.post_key_string(pid),
             id: post.key.id.to_string(),
@@ -311,6 +333,25 @@ impl<'a> Ctx<'a> {
                 liked: self.state.likes.contains_key(&(v, pid)),
                 reposted: self.state.reposts.contains_key(&(v, pid)),
             }),
+            link,
+        })
+    }
+
+    fn link(&self, pid: Pid) -> Option<LinkDto<'a>> {
+        let (url, target) = self.state.post_link(pid, self.site_hosts)?;
+        Some(match target {
+            LinkTarget::Post(linked) => LinkDto {
+                url,
+                post: self.post(linked, false).map(Box::new),
+                preview: None,
+            },
+            LinkTarget::Url(kind) => LinkDto {
+                url,
+                post: None,
+                preview: unfurl::youtube(&kind)
+                    .map(Arc::new)
+                    .or_else(|| self.unfurl.and_then(|u| u.cached(url))),
+            },
         })
     }
 

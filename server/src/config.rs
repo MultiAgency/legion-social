@@ -45,6 +45,13 @@ pub struct Config {
     /// Overall time budget for importing one legacy image.
     pub legacy_image_budget: Duration,
     pub denylist_path: Option<PathBuf>,
+    /// This site's hostnames: links to them are never previewed, and `/{account}/post/{id}`
+    /// links show the post as a quote.
+    pub site_hosts: Vec<String>,
+    /// Fetch link previews (Open Graph cards, near.fm songs).
+    pub unfurl_enabled: bool,
+    pub unfurl_user_agent: String,
+    pub near_fm_api_url: String,
 }
 
 fn var(name: &str) -> Option<String> {
@@ -119,6 +126,17 @@ impl Config {
                 var_or("LEGACY_IMAGE_BUDGET_SECS", "45").parse().context("LEGACY_IMAGE_BUDGET_SECS")?,
             ),
             denylist_path: var("DENYLIST_PATH").map(PathBuf::from),
+            site_hosts: var_or("SITE_HOSTS", "near.social,www.near.social")
+                .split(',')
+                .map(|h| h.trim().to_ascii_lowercase())
+                .filter(|h| !h.is_empty())
+                .collect(),
+            unfurl_enabled: var_or("UNFURL", "on") != "off",
+            unfurl_user_agent: var_or(
+                "UNFURL_USER_AGENT",
+                "Mozilla/5.0 (compatible; NearSocialBot/1.0; +https://near.social)",
+            ),
+            near_fm_api_url: var_or("NEAR_FM_API_URL", "https://api.near.fm").trim_end_matches('/').to_string(),
         })
     }
 }

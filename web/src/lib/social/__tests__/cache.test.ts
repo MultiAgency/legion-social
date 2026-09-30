@@ -48,6 +48,12 @@ describe("mapPostsInData", () => {
     expect(mapPostsInData(data, "zzz.near/9", like)).toBe(data);
   });
 
+  it("patches linked near.social posts", () => {
+    const b = post("b.near/2", { link: { url: "https://near.social/a.near/post/1", post: post("a.near/1") } });
+    const next = mapPostsInData(feed(b), "a.near/1", like);
+    expect(next.pages[0].items[0].post.link?.post?.counts.likes).toBe(1);
+  });
+
   it("patches threads", () => {
     const t: ThreadResponse = { post: post("a.near/2"), ancestors: [post("a.near/1")], parent_missing: false };
     const next = mapPostsInData(t, "a.near/1", like);
@@ -72,6 +78,15 @@ describe("query cache helpers", () => {
     const following = qc.getQueryData<InfiniteData<Page<FeedItem>>>(qk.feed({ kind: "following", account: "me.near" }, "me.near"))!;
     expect(following.pages[0].items).toHaveLength(1);
     expect(following.pages[0].items[0].post.quote).toEqual({ key: "a.near/1", unavailable: true });
+  });
+
+  it("drops links to deleted posts", () => {
+    const qc = new QueryClient();
+    const url = "https://near.social/a.near/post/1";
+    qc.setQueryData(qk.feed({ kind: "global" }, null), feed(post("b.near/1", { link: { url, post: post("a.near/1") } })));
+    removePostEverywhere(qc, "a.near/1");
+    const data = qc.getQueryData<InfiniteData<Page<FeedItem>>>(qk.feed({ kind: "global" }, null))!;
+    expect(data.pages[0].items[0].post.link).toBeNull();
   });
 
   it("prepends pending posts once", () => {

@@ -7,7 +7,8 @@ use crate::ingest::tailer::Progress;
 use crate::legacy::LegacyClient;
 use crate::model::account_id::is_valid_account_id;
 use crate::model::keys::parse_post_id;
-use crate::state::query::{ForYouCursor, ProfileTab, FOR_YOU_WINDOW_MS};
+use crate::state::query::{ForYouCursor, LinkTarget, ProfileTab, FOR_YOU_WINDOW_MS};
+use crate::unfurl::{self, Unfurler};
 use crate::state::{Aid, Seq, State};
 use actix_web::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use actix_web::http::StatusCode;
@@ -70,6 +71,7 @@ pub struct AppState {
     pub progress: Arc<Progress>,
     pub events: broadcast::Sender<Arc<str>>,
     pub legacy: Arc<LegacyClient>,
+    pub unfurl: Arc<Unfurler>,
     pub docs: Docs,
     pub caches: Caches,
 }
@@ -175,6 +177,8 @@ fn ctx<'a>(app: &'a AppState, state: &'a State, viewer: Option<Aid>) -> Ctx<'a> 
         state,
         viewer,
         gateway: &app.config.fastfs_gateway,
+        site_hosts: &app.config.site_hosts,
+        unfurl: Some(&app.unfurl),
     }
 }
 
@@ -362,6 +366,31 @@ pub async fn post_list(app: App, path: web::Path<(String, String, String)>, q: w
             _ => Err(ApiError::not_found(format!("unknown list {list}"))),
         }
     })())
+}
+
+/// The preview of a post's link (docs/API.md). Only a visible post's own link can be fetched.
+pub async fn post_preview(app: App, path: web::Path<(String, String)>) -> HttpResponse {
+    let (account, id) = path.into_inner();
+    // Resolve the link under the lock, then release it before any network I/O.
+    let link = {
+        let state = app.state.read();
+        match post_pid(&state, &account, &id) {
+            Ok(pid) => state.post_link(pid, &app.config.site_hosts).map(|(url, target)| (url.to_string(), target)),
+            Err(e) => return e.into(),
+        }
+    };
+    let (url, kind) = match link {
+        Some((url, LinkTarget::Url(kind))) => (url, kind),
+        _ => return ApiError(StatusCode::NOT_FOUND, "no_link", "this post has no link to preview".into()).into(),
+    };
+    let preview = match unfurl::youtube(&kind) {
+        Some(p) => Arc::new(p),
+        None => app.unfurl.preview(&url).await,
+    };
+    let max_age = if preview.is_renderable() { 600 } else { 300 };
+    HttpResponse::Ok()
+        .insert_header((CACHE_CONTROL, format!("public, max-age={max_age}")))
+        .json(json!({ "url": url, "preview": &*preview }))
 }
 
 #[derive(Deserialize)]
@@ -671,6 +700,8 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
         .route("/v1/accounts/{account}/{list}", web::get().to(account_list))
         .route("/v1/posts/batch", web::post().to(posts_batch))
         .route("/v1/posts/{account}/{id}", web::get().to(post))
+        // Before `{list}`, which would otherwise match `/preview`.
+        .route("/v1/posts/{account}/{id}/preview", web::get().to(post_preview))
         .route("/v1/posts/{account}/{id}/{list}", web::get().to(post_list))
         .route("/v1/hashtags/trending", web::get().to(trending))
         .route("/v1/hashtags/{tag}", web::get().to(hashtag))

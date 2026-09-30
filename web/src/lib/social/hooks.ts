@@ -418,17 +418,26 @@ export function useEditPost() {
         mentions: extractMentions(value.text ?? ""),
         hashtags: extractHashtags(value.text ?? ""),
         edited_at: Date.now(),
+        // Keep the link preview only while its URL is still in the text.
+        link: p.link && (value.text ?? "").includes(p.link.url) ? p.link : undefined,
       }));
+      const restore = (p: Post): Post => ({
+        ...p,
+        text: before.text,
+        media: before.media,
+        edited_at: before.edited_at,
+        link: before.link,
+      });
       let hash: string;
       try {
         hash = await writeKv(accountId, data);
       } catch (err) {
-        patchPostEverywhere(qc, post.key, (p) => ({ ...p, text: before.text, media: before.media, edited_at: before.edited_at }));
+        patchPostEverywhere(qc, post.key, restore);
         throw err;
       }
       void confirmTx(hash).catch((err) => {
         if (isSigningError(err, "confirm_timeout")) return;
-        patchPostEverywhere(qc, post.key, (p) => ({ ...p, text: before.text, media: before.media, edited_at: before.edited_at }));
+        patchPostEverywhere(qc, post.key, restore);
         onError(err, "Your edit wasn't accepted");
       });
     },

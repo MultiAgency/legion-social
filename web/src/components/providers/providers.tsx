@@ -6,6 +6,7 @@ import * as React from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { getQueryClient } from "@/lib/api/query-client";
+import { installPlaybackCoordinator } from "@/lib/media/playback";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { AccountProvider } from "./account-provider";
@@ -19,6 +20,8 @@ export function Providers({
   children: React.ReactNode;
 }) {
   const queryClient = getQueryClient();
+  // Starting one audio/video (or YouTube embed) pauses the others.
+  React.useEffect(installPlaybackCoordinator, []);
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>

@@ -1,6 +1,7 @@
 //! Read-side queries. Every list is validated lazily (see the module docs of `state`).
 
 use super::*;
+use crate::model::links::{classify, LinkKind};
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
@@ -673,5 +674,51 @@ impl State {
         }
         cursor.recent = Pos::Done;
         None
+    }
+}
+
+// ---- Links ----
+
+/// What a post's link attachment points to (see `State::post_link`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LinkTarget {
+    /// Another visible post on this site, shown as a quote.
+    Post(Pid),
+    /// A URL to preview: YouTube, near.fm or any web page.
+    Url(LinkKind),
+}
+
+impl State {
+    /// The link a post is decorated with, and the URL as written in its text:
+    /// - nothing if the post has its own (on-chain) quote;
+    /// - else the last link to another visible post on this site, even when the post has media;
+    /// - else, unless the post has media, the last URL that isn't on this site.
+    pub fn post_link(&self, pid: Pid, site_hosts: &[String]) -> Option<(&str, LinkTarget)> {
+        let body = self.body(pid)?;
+        if body.quote.is_some() {
+            return None;
+        }
+        let links: Vec<(&str, LinkKind)> = text::url_spans(&body.text)
+            .into_iter()
+            .rev()
+            .filter_map(|(start, end)| {
+                let url = &body.text[start..end];
+                classify(url, site_hosts).map(|kind| (url, kind))
+            })
+            .collect();
+        for (url, kind) in &links {
+            if let LinkKind::SitePost { account, id } = kind {
+                if let Some(linked) = self.pid(account, *id).filter(|&l| l != pid && self.is_visible(l)) {
+                    return Some((url, LinkTarget::Post(linked)));
+                }
+            }
+        }
+        if !body.media.is_empty() {
+            return None;
+        }
+        links
+            .into_iter()
+            .find(|(_, kind)| !matches!(kind, LinkKind::Site | LinkKind::SitePost { .. }))
+            .map(|(url, kind)| (url, LinkTarget::Url(kind)))
     }
 }

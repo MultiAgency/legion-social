@@ -3,7 +3,7 @@
  * hooks. Using the same builders on both sides guarantees hydration hits the same cache keys.
  */
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import { api, type ListParams } from "./client";
+import { api, isNotFound, type ListParams } from "./client";
 import type { AccountCard, FeedItem, Notification, Page } from "./types";
 
 export type AccountTab = "posts" | "replies" | "media" | "likes";
@@ -69,6 +69,7 @@ export const qk = {
     ["ns", "notification-count", account, since] as const,
   trending: ["ns", "trending"] as const,
   legacy: (account: string) => ["ns", "legacy", account] as const,
+  preview: (postKey: string, url: string) => ["ns", "preview", postKey, url] as const,
   status: ["ns", "status"] as const,
 };
 
@@ -196,5 +197,17 @@ export function legacyQuery(account: string) {
     queryFn: ({ signal }) => api.legacy(account, signal),
     staleTime: Infinity,
     retry: 1,
+  });
+}
+
+/** The lazily unfurled preview of a post's link (see `needsPreviewFetch`). */
+export function previewQuery(postKey: string, url: string) {
+  const [a, id] = splitPostKey(postKey);
+  return queryOptions({
+    queryKey: qk.preview(postKey, url),
+    queryFn: ({ signal }) => api.postPreview(a, id, signal),
+    staleTime: Infinity,
+    // 404: the post is gone or has no link to unfurl; retrying won't change that.
+    retry: (failures, err) => failures < 1 && !isNotFound(err),
   });
 }

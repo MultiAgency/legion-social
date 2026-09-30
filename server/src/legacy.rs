@@ -7,12 +7,12 @@ use crate::model::values::{MAX_ABOUT, MAX_LINK, MAX_LOCATION, MAX_NAME};
 use anyhow::{anyhow, bail, Context, Result};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use bytes::{Bytes, BytesMut};
+use crate::fetch::{sniff_image, SafeClient};
+use bytes::Bytes;
 use parking_lot::Mutex;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
-use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -154,87 +154,6 @@ pub fn normalize(account_id: &str, root: &Value) -> LegacyData {
     }
 }
 
-// ---- SSRF protection ----
-
-fn is_public_ip(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v4) => {
-            let o = v4.octets();
-            !(v4.is_private()
-                || v4.is_loopback()
-                || v4.is_link_local()
-                || v4.is_broadcast()
-                || v4.is_multicast()
-                || v4.is_unspecified()
-                || v4.is_documentation()
-                || o[0] == 0
-                || (o[0] == 100 && (64..128).contains(&o[1])) // CGNAT
-                || (o[0] == 198 && (18..20).contains(&o[1])) // benchmarking
-                || o[0] >= 240)
-        }
-        IpAddr::V6(v6) => {
-            if let Some(v4) = v6.to_ipv4_mapped() {
-                return is_public_ip(IpAddr::V4(v4));
-            }
-            let s = v6.segments();
-            !(v6.is_loopback()
-                || v6.is_unspecified()
-                || v6.is_multicast()
-                || (s[0] & 0xfe00) == 0xfc00 // unique local
-                || (s[0] & 0xffc0) == 0xfe80 // link local
-                || (s[0] == 0x2001 && s[1] == 0x0db8)) // documentation
-        }
-    }
-}
-
-/// Resolves hostnames and refuses non-public addresses.
-struct PublicResolver;
-
-impl reqwest::dns::Resolve for PublicResolver {
-    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
-        Box::pin(async move {
-            let addrs: Vec<SocketAddr> = tokio::net::lookup_host((name.as_str(), 0))
-                .await?
-                .filter(|a| is_public_ip(a.ip()))
-                .collect();
-            if addrs.is_empty() {
-                return Err("host resolves to no public address".into());
-            }
-            Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
-        })
-    }
-}
-
-/// A URL is fetchable if it's http(s) and not a literal non-public IP.
-fn is_fetchable(url: &url::Url) -> bool {
-    if !matches!(url.scheme(), "http" | "https") {
-        return false;
-    }
-    match url.host() {
-        Some(url::Host::Ipv4(ip)) => is_public_ip(IpAddr::V4(ip)),
-        Some(url::Host::Ipv6(ip)) => is_public_ip(IpAddr::V6(ip)),
-        Some(url::Host::Domain(d)) => !d.eq_ignore_ascii_case("localhost"),
-        None => false,
-    }
-}
-
-fn sniff_image(bytes: &[u8]) -> Option<&'static str> {
-    if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
-        Some("image/png")
-    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        Some("image/jpeg")
-    } else if bytes.starts_with(b"GIF8") {
-        Some("image/gif")
-    } else if bytes.len() > 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
-        Some("image/webp")
-    } else if bytes.len() > 12 && &bytes[4..8] == b"ftyp" && (&bytes[8..12] == b"avif" || &bytes[8..12] == b"avis") {
-        Some("image/avif")
-    } else {
-        let head = String::from_utf8_lossy(&bytes[..bytes.len().min(512)]).to_lowercase();
-        (head.contains("<svg")).then_some("image/svg+xml")
-    }
-}
-
 pub struct Image {
     pub bytes: Bytes,
     pub content_type: &'static str,
@@ -364,7 +283,7 @@ pub struct LegacyClient {
     config: Arc<Config>,
     mirror_host: Option<String>,
     api: reqwest::Client,
-    fetcher: reqwest::Client,
+    fetcher: SafeClient,
     cache: Mutex<HashMap<String, (Instant, Arc<LegacyData>)>>,
 }
 
@@ -374,23 +293,13 @@ impl LegacyClient {
             .timeout(Duration::from_secs(15))
             .user_agent("near-social-server")
             .build()?;
-        let fetcher = reqwest::Client::builder()
-            // Upper bound; each request sets its own (shorter) timeout.
-            .timeout(config.legacy_mirror_timeout + Duration::from_secs(5))
-            .dns_resolver(Arc::new(PublicResolver))
-            // Keep our Referer across redirects instead of replacing it with the previous URL.
-            .referer(false)
-            .redirect(reqwest::redirect::Policy::custom(|attempt| {
-                if attempt.previous().len() >= MAX_REDIRECTS {
-                    attempt.error("too many redirects")
-                } else if !is_fetchable(attempt.url()) {
-                    attempt.error("redirect to a non-public URL")
-                } else {
-                    attempt.follow()
-                }
-            }))
-            .user_agent("near-social-server (legacy image import)")
-            .build()?;
+        // Each request sets its own (shorter) timeout.
+        let fetcher = SafeClient::new(
+            "near-social-server (legacy image import)",
+            MAX_REDIRECTS,
+            config.legacy_mirror_timeout + Duration::from_secs(5),
+            false,
+        )?;
         let mirror_host = config
             .ipfs_gateways
             .first()
@@ -655,9 +564,6 @@ impl LegacyClient {
     /// cap and a per-host timeout (never longer than `cap`).
     async fn fetch_bytes(&self, url: &str, max: usize, cap: Duration) -> Result<Bytes> {
         let parsed = url::Url::parse(url)?;
-        if !is_fetchable(&parsed) {
-            bail!("URL is not fetchable");
-        }
         let timeout = timeout_for(
             &parsed,
             self.mirror_host.as_deref(),
@@ -665,25 +571,9 @@ impl LegacyClient {
             self.config.legacy_fetch_timeout,
         )
         .min(cap);
-        let mut response = self
-            .fetcher
-            .get(parsed)
-            .timeout(timeout)
-            .header(reqwest::header::REFERER, &self.config.legacy_referer)
-            .send()
-            .await?
-            .error_for_status()?;
-        if response.content_length().is_some_and(|l| l as usize > max) {
-            bail!("response too large");
-        }
-        let mut body = BytesMut::new();
-        while let Some(chunk) = response.chunk().await? {
-            if body.len() + chunk.len() > max {
-                bail!("response too large");
-            }
-            body.extend_from_slice(&chunk);
-        }
-        Ok(body.freeze())
+        self.fetcher
+            .get_bytes(&parsed, timeout, max, &[("referer", &self.config.legacy_referer)])
+            .await
     }
 
     async fn fetch_image(&self, url: &str, cap: Duration) -> Result<Image> {
@@ -846,18 +736,6 @@ mod tests {
         assert_eq!(t("https://IPFS.near.social/ipfs/x"), mirror);
         assert_eq!(t("https://ipfs.io/ipfs/x"), default);
         assert_eq!(t("https://i.near.social/large/https://ipfs.near.social/ipfs/x"), default);
-    }
-
-    #[test]
-    fn blocks_private_addresses() {
-        for ip in ["127.0.0.1", "10.0.0.1", "169.254.169.254", "192.168.1.1", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "::ffff:127.0.0.1"] {
-            assert!(!is_public_ip(ip.parse().unwrap()), "{ip}");
-        }
-        assert!(is_public_ip("1.1.1.1".parse().unwrap()));
-        assert!(!is_fetchable(&url::Url::parse("http://169.254.169.254/latest").unwrap()));
-        assert!(!is_fetchable(&url::Url::parse("file:///etc/passwd").unwrap()));
-        assert!(!is_fetchable(&url::Url::parse("http://localhost:8080/").unwrap()));
-        assert!(is_fetchable(&url::Url::parse("https://ipfs.near.social/ipfs/x").unwrap()));
     }
 
     #[test]

@@ -18,6 +18,7 @@ deposit, just a NEAR account with a little gas money. Reads come from the indexe
 
 | I want to…            | Do this |
 |-----------------------|---------|
+| See a link's preview  | Posts carry `link` (web card, YouTube, near.fm song, or a linked post). If `link.preview` is missing: `GET {{HOSTNAME}}/v1/posts/{account_id}/{post_id}/preview` |
 | Read what's popular   | `GET {{HOSTNAME}}/v1/feed/for_you` (add `?viewer=you.near` to mix in accounts you follow) |
 | Read the latest posts | `GET {{HOSTNAME}}/v1/feed/global` |
 | Read a profile        | `GET {{HOSTNAME}}/v1/accounts/{account_id}` |

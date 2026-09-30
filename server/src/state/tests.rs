@@ -266,3 +266,85 @@ mod for_you {
         }
     }
 }
+
+mod links {
+    use super::*;
+    use crate::model::links::LinkKind;
+    use crate::state::query::LinkTarget;
+
+    fn site() -> Vec<String> {
+        vec!["near.social".into()]
+    }
+
+    const MEDIA: &str = "fastfs://a.near/social/media/x.webp";
+
+    fn state_with(posts: Vec<(&str, u64, Value)>) -> State {
+        let mut state = State::new();
+        for (i, (author, id, body)) in posts.into_iter().enumerate() {
+            state.apply_block(&block(i as u64 + 1, T0 + i as u64, vec![(author, json!({ format!("post/{id}"): body }))]));
+        }
+        state
+    }
+
+    fn link(state: &State, author: &str, id: u64) -> Option<(String, LinkTarget)> {
+        let pid = state.pid(author, id).unwrap();
+        state.post_link(pid, &site()).map(|(u, t)| (u.to_string(), t))
+    }
+
+    #[test]
+    fn picks_the_last_web_url() {
+        let s = state_with(vec![("a.near", 1, json!({"text": "see https://one.io and https://two.io/x."}))]);
+        assert_eq!(link(&s, "a.near", 1), Some(("https://two.io/x".into(), LinkTarget::Url(LinkKind::Web))));
+    }
+
+    #[test]
+    fn media_blocks_cards_but_not_linked_posts() {
+        let media = json!([{"src": MEDIA, "mime": "image/webp"}]);
+        let s = state_with(vec![
+            ("b.near", 5, json!({"text": "original"})),
+            ("a.near", 1, json!({"text": "https://github.com/near", "media": media})),
+            ("a.near", 2, json!({"text": "look https://near.social/b.near/post/5", "media": media})),
+        ]);
+        assert_eq!(link(&s, "a.near", 1), None);
+        let b5 = s.pid("b.near", 5).unwrap();
+        assert_eq!(link(&s, "a.near", 2).map(|l| l.1), Some(LinkTarget::Post(b5)));
+    }
+
+    #[test]
+    fn own_quote_wins() {
+        let s = state_with(vec![
+            ("b.near", 5, json!({"text": "original"})),
+            ("a.near", 1, json!({"text": "https://github.com/near", "quote": "b.near/5"})),
+        ]);
+        assert_eq!(link(&s, "a.near", 1), None);
+    }
+
+    #[test]
+    fn linked_posts_must_be_visible_and_not_self() {
+        let mut s = state_with(vec![
+            ("b.near", 5, json!({"text": "original"})),
+            ("a.near", 1, json!({"text": "https://near.social/b.near/post/5 https://near.social/a.near/post/1"})),
+            ("a.near", 2, json!({"text": "https://near.social/b.near/post/5 https://github.com/near"})),
+        ]);
+        let b5 = s.pid("b.near", 5).unwrap();
+        // The last URL links to itself: the earlier post link is used.
+        assert_eq!(link(&s, "a.near", 1).map(|l| l.1), Some(LinkTarget::Post(b5)));
+        // Delete the linked post: a.near/2 falls back to its web URL.
+        s.apply_block(&block(100, T0 + 100, vec![("b.near", json!({"post/5": null}))]));
+        assert_eq!(link(&s, "a.near", 2).map(|l| l.1), Some(LinkTarget::Url(LinkKind::Web)));
+        // A post linking only to a missing post or a profile has nothing to show.
+        assert_eq!(link(&s, "a.near", 1), None);
+    }
+
+    #[test]
+    fn classifies_embeds() {
+        let s = state_with(vec![
+            ("a.near", 1, json!({"text": "https://youtu.be/dQw4w9WgXcQ?t=5"})),
+            ("a.near", 2, json!({"text": "https://near.fm/song/790555c9-f807-4d8d-a81d-a644a7b24f40"})),
+            ("a.near", 3, json!({"text": "profile https://near.social/b.near"})),
+        ]);
+        assert!(matches!(link(&s, "a.near", 1).unwrap().1, LinkTarget::Url(LinkKind::Youtube { start: Some(5), .. })));
+        assert!(matches!(link(&s, "a.near", 2).unwrap().1, LinkTarget::Url(LinkKind::NearFm { .. })));
+        assert_eq!(link(&s, "a.near", 3), None);
+    }
+}

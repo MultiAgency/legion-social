@@ -22,6 +22,9 @@ WORDS = (
 TAGS = ["near", "fastdata", "buildinpublic", "rust", "ai", "agents", "nearsocial", "web3", "defi", "gm"]
 NAMES = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Grace", "Heidi", "Ivan", "Judy", "Mallory",
          "Niaj", "Olivia", "Peggy", "Rupert", "Sybil", "Trent", "Victor", "Walter", "Yuki", "Zoe"]
+YOUTUBE = ["dQw4w9WgXcQ", "jNQXAC9IVRw"]
+NEAR_FM_SONG = "790555c9-f807-4d8d-a81d-a644a7b24f40"
+WEB_LINKS = ["https://github.com/near/nearcore", "https://near.org", "https://www.bbc.com/news", "https://x.com/NEARProtocol"]
 MEDIA = [{"src": "fastfs://mob.near/fastfs.near/fastnear.png", "mime": "image/png", "w": 512, "h": 512, "alt": "FastNEAR logo"}]
 # Start ~6 hours ago so "trending" (last 24h) has data.
 T0_MS = int(time.time() * 1000) - 6 * 3600 * 1000
@@ -121,6 +124,17 @@ def main():
             body["quote"] = f"{qa}/{qi}"
         if rng.random() < 0.07:
             body["media"] = MEDIA
+        # Links, for previews and embeds.
+        r = rng.random()
+        if r < 0.03:
+            body["text"] += " https://www.youtube.com/watch?v=" + rng.choice(YOUTUBE)
+        elif r < 0.05:
+            body["text"] += " https://near.fm/song/" + NEAR_FM_SONG
+        elif r < 0.09:
+            body["text"] += " " + rng.choice(WEB_LINKS)
+        elif r < 0.12 and posts:
+            la, li = rng.choice(posts[-300:])
+            body["text"] += f" https://near.social/{la}/post/{li}"
         kv[f"post/{pid}"] = body
         actions = [(author, kv)]
         # Some likes/reposts in the same block

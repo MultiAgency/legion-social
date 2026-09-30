@@ -58,11 +58,13 @@ const csp = [
   `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""}`,
   // The wallet-selector modal and Radix set inline styles.
   "style-src 'self' 'unsafe-inline'",
-  // User media only comes from FastFS; HOT's wallet-modal icon is the one remote exception.
-  `img-src 'self' ${gatewayOrigin} data: blob: https://storage.herewallet.app`,
+  // User media comes from FastFS; link-card and YouTube thumbnails from near.social's image proxy.
+  // HOT's wallet-modal icon is the one other remote exception.
+  `img-src 'self' ${gatewayOrigin} https://i.near.social data: blob: https://storage.herewallet.app`,
   "font-src 'self' data:",
   `connect-src 'self' ${origin(API_URL)} ${origin(RPC_URL)} ${gatewayOrigin} ${WALLET_CONNECT.join(" ")}${isDev ? " ws: wss:" : ""}`,
-  `frame-src ${WALLET_FRAMES.join(" ")}`,
+  // YouTube embeds (loaded only after a click).
+  `frame-src ${WALLET_FRAMES.join(" ")} https://www.youtube-nocookie.com`,
   "worker-src 'self' blob:",
   `media-src 'self' blob: ${gatewayOrigin}`,
   "object-src 'none'",
@@ -76,11 +78,13 @@ const csp = [
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
   { key: "X-Content-Type-Options", value: "nosniff" },
+  // Not `no-referrer`: YouTube embeds refuse to play without a referrer (error 153).
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Frame-Options", value: "DENY" },
   // Wallet popups (MyNearWallet, Intear…) talk back to window.opener.
   { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
-  // Ledger uses WebHID/WebUSB.
+  // Ledger uses WebHID/WebUSB. Don't restrict autoplay or fullscreen here: the YouTube embed
+  // needs both (and the iframe's `allow` can't grant what this header denies).
   {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), payment=(), hid=(self), usb=(self)",

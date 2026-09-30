@@ -71,7 +71,13 @@ Base URL: `{{HOSTNAME}}`, for example `http://127.0.0.1:3040` in development.
   "mentions": ["bob.near"],
   "hashtags": ["near"],
   "counts": { "replies": 0, "reposts": 0, "likes": 3, "quotes": 0 },
-  "viewer": { "liked": false, "reposted": false }
+  "viewer": { "liked": false, "reposted": false },
+  "link": {
+    "url": "https://near.fm/song/790555c9-f807-4d8d-a81d-a644a7b24f40",
+    "preview": { "kind": "near_fm", "uuid": "790555c9-…", "title": "NEAR IN TRENDS", "artist": "Vadim",
+                 "artist_url": "https://near.fm/profile/zavodil.near", "cover": "https://main.fastfs.io/…png",
+                 "audio": "https://main.fastfs.io/…mp3", "mime": "audio/mpeg", "duration": 233 }
+  }
 }
 ```
 - `media[].w`, `media[].h` and `media[].alt` may be `null`.
@@ -79,6 +85,23 @@ Base URL: `{{HOSTNAME}}`, for example `http://127.0.0.1:3040` in development.
 - `quote` is `null`, a nested **Post** (whose own `quote` is always `null`), or
   `{ "key": "carol.near/…", "unavailable": true }` when the quoted post doesn't exist or was
   deleted.
+- `link` decorates a top-level post with one of its URLs, or is `null`. Quoted posts never have one.
+  - **Which URL:** nothing if the post has its own `quote`. Otherwise the last link to another
+    post on this site (`https://near.social/{account}/post/{id}`), which comes as a nested Post
+    in `link.post`; clients show it like a quote. Otherwise, unless the post has media, the last
+    URL that isn't on this site.
+  - **`link.url`** is the URL exactly as written in `text`. Clients may hide it when it ends the
+    text and something renders in its place.
+  - **`link.preview`** is absent until the server has fetched it. Then call
+    `GET /v1/posts/{account_id}/{post_id}/preview`. It's one of:
+
+| `kind` | Fields | Meaning |
+|---|---|---|
+| `card` | `title`, `description`, `site_name`, `image`, `large` | Open Graph card. `image` is the page's own URL; show it through an image proxy (near.social uses `https://i.near.social/large/{image}`). `large` means a wide image card, otherwise a small thumbnail card. |
+| `youtube` | `video_id`, `start` (seconds or `null`), `shorts` | Embed with `https://www.youtube-nocookie.com/embed/{video_id}`. |
+| `near_fm` | `uuid`, `title`, `artist`, `artist_url`, `cover`, `audio`, `mime`, `duration` | A near.fm song. `audio` and `cover` are FastFS URLs, playable directly. |
+| `unavailable` | none | The linked item exists but can't be shown (e.g. a hidden or deleted song). |
+| `none` | none | Nothing to show; render the plain link. |
 
 ### FeedItem (every list of posts)
 ```json
@@ -160,6 +183,10 @@ Items from `/v1/feed/for_you` also carry `"reason"`: `"following"`, `"trending"`
 - **`GET /v1/posts/{account_id}/{post_id}/quotes`** returns FeedItems, newest first.
 - **`GET /v1/posts/{account_id}/{post_id}/likes`** returns AccountCards.
 - **`GET /v1/posts/{account_id}/{post_id}/reposts`** returns AccountCards.
+- **`GET /v1/posts/{account_id}/{post_id}/preview`** returns `{ url, preview }` for the post's
+  `link` (see Post), fetching and caching it if needed. Returns 404 `not_found` for missing posts
+  and 404 `no_link` when there's nothing to preview. The server only fetches URLs from posts; it
+  never fetches arbitrary URLs.
 - **`POST /v1/posts/batch`** takes `{ "keys": ["alice.near/1", …], "viewer"?: "…" }` (up to
   100 keys) and returns `{ items: (Post | null)[] }` in input order.
 

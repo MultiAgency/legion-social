@@ -12,6 +12,7 @@ import type {
   Notification,
   Page,
   Post,
+  PostPreviewResponse,
   Profile,
   Status,
   ThreadResponse,
@@ -151,6 +152,9 @@ export const api = {
     list<AccountCard>(`/v1/posts/${enc(account)}/${enc(postId)}/likes`, p),
   reposters: (account: string, postId: string, p?: ListParams) =>
     list<AccountCard>(`/v1/posts/${enc(account)}/${enc(postId)}/reposts`, p),
+  /** Unfurls the post's `link` when the server hadn't cached its preview yet. */
+  postPreview: (account: string, postId: string, signal?: AbortSignal) =>
+    apiFetch<PostPreviewResponse>(`/v1/posts/${enc(account)}/${enc(postId)}/preview`, { signal }),
   postsBatch: (keys: string[], viewer?: string | null, signal?: AbortSignal) =>
     apiFetch<{ items: (Post | null)[] }>("/v1/posts/batch", {
       method: "POST",

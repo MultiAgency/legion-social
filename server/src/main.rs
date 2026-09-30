@@ -9,6 +9,7 @@ use near_social_server::ingest::tailer::{self, Progress};
 use near_social_server::legacy::LegacyClient;
 use near_social_server::model::account_id::is_valid_account_id;
 use near_social_server::state::State;
+use near_social_server::unfurl::Unfurler;
 use parking_lot::RwLock;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -126,6 +127,7 @@ async fn main() -> Result<()> {
         progress,
         events,
         legacy: Arc::new(LegacyClient::new(config.clone())?),
+        unfurl: Unfurler::new(config.clone())?,
         docs: Docs {
             skill: include_str!("../../SKILL.md").replace("{{HOSTNAME}}", base),
             standard: include_str!("../../docs/STANDARD.md").replace("{{HOSTNAME}}", base),

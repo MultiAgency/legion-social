@@ -15,7 +15,7 @@ export function postHref(key: string): string {
   return `/${key.slice(0, i)}/post/${key.slice(i + 1)}`;
 }
 
-/** Embedded quoted post (compact). */
+/** Embedded quoted post (compact). Never renders link previews: nested posts have `link: null`. */
 export function QuotedPost({
   quote,
   className,

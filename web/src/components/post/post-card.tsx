@@ -22,6 +22,7 @@ import { useComposer } from "@/components/composer/composer-provider";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { NameLine } from "@/components/account/names";
 import { AccountHoverCard } from "@/components/account/account-hover-card";
+import { PostLinkEmbed, usePostLink } from "@/components/embeds/post-link-embed";
 import { RelativeTime } from "@/components/common/timestamp";
 import { setMuted, useMutes } from "@/lib/local-store";
 import { useDeletePost } from "@/lib/social/hooks";
@@ -202,6 +203,7 @@ export function PostCard({
 }) {
   const post = (item?.post ?? postProp) as Post;
   const { href, prefetch, onClick } = usePostNavigation(post);
+  const { text, quote, embed } = usePostLink(post);
   const author = post.author;
 
   return (
@@ -260,9 +262,10 @@ export function PostCard({
             {!post._pending && <PostMenu post={post} />}
           </div>
           {showReplyContext && <ReplyContext post={post} />}
-          {post.text && <CollapsibleText text={post.text} className="mt-0.5 text-[15px] leading-[1.4]" />}
+          {text && <CollapsibleText text={text} className="mt-0.5 text-[15px] leading-[1.4]" />}
           {post.media.length > 0 && <PostMediaGrid media={post.media} className="mt-3" />}
-          {post.quote && <QuotedPost quote={post.quote} className="mt-3" />}
+          {quote && <QuotedPost quote={quote} className="mt-3" />}
+          {embed && <PostLinkEmbed embed={embed} className="mt-3" />}
           <PostActions post={post} className="mt-1.5" />
         </div>
       </div>
@@ -272,6 +275,7 @@ export function PostCard({
 
 /** The focused post on a thread page: large text, full timestamp, counts row. */
 export function FocusedPost({ post, connectTop }: { post: Post; connectTop?: boolean }) {
+  const { text, quote, embed } = usePostLink(post);
   const author = post.author;
   const counts: [number, string, string][] = [
     [post.counts.reposts, "Repost", "Reposts"],
@@ -298,13 +302,14 @@ export function FocusedPost({ post, connectTop }: { post: Post; connectTop?: boo
           <ReplyContext post={post} />
         </div>
       )}
-      {post.text && (
+      {text && (
         <div className="mt-3 text-[17px] leading-[1.45]">
-          <RichText text={post.text} />
+          <RichText text={text} />
         </div>
       )}
       {post.media.length > 0 && <PostMediaGrid media={post.media} className="mt-3" />}
-      {post.quote && <QuotedPost quote={post.quote} className="mt-3" />}
+      {quote && <QuotedPost quote={quote} className="mt-3" />}
+      {embed && <PostLinkEmbed embed={embed} className="mt-3" />}
       <div className="mt-4 flex flex-wrap items-center gap-x-1 text-[15px] text-muted-foreground">
         <time dateTime={new Date(post.created_at).toISOString()} suppressHydrationWarning>
           {fullTime(post.created_at)}
