@@ -21,6 +21,7 @@ import { useAccount } from "@/components/providers/account-provider";
 import { useComposer } from "@/components/composer/composer-provider";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { NameLine } from "@/components/account/names";
+import { AccountHoverCard } from "@/components/account/account-hover-card";
 import { RelativeTime } from "@/components/common/timestamp";
 import { setMuted, useMutes } from "@/lib/local-store";
 import { useDeletePost } from "@/lib/social/hooks";
@@ -52,9 +53,11 @@ function RepostHeader({ by }: { by: AccountSummary }) {
   return (
     <div className="-mb-1 flex items-center gap-2 pl-[34px] pt-2 text-[13px] font-semibold text-muted-foreground">
       <Repeat2 className="size-4" />
-      <Link prefetch={false} href={`/${by.account_id}`} className="truncate hover:underline" onClick={(e) => e.stopPropagation()}>
-        {by.account_id === accountId ? "You reposted" : `${by.name?.trim() || by.account_id} reposted`}
-      </Link>
+      <AccountHoverCard accountId={by.account_id}>
+        <Link prefetch={false} href={`/${by.account_id}`} className="truncate hover:underline" onClick={(e) => e.stopPropagation()}>
+          {by.account_id === accountId ? "You reposted" : `${by.name?.trim() || by.account_id} reposted`}
+        </Link>
+      </AccountHoverCard>
     </div>
   );
 }
@@ -75,9 +78,11 @@ function ReplyContext({ post }: { post: Post }) {
   return (
     <div className="text-[15px] text-muted-foreground">
       Replying to{" "}
-      <Link prefetch={false} href={`/${to}`} className="text-link hover:underline" onClick={(e) => e.stopPropagation()}>
-        @{to}
-      </Link>
+      <AccountHoverCard accountId={to}>
+        <Link prefetch={false} href={`/${to}`} className="text-link hover:underline" onClick={(e) => e.stopPropagation()}>
+          @{to}
+        </Link>
+      </AccountHoverCard>
     </div>
   );
 }
@@ -220,9 +225,11 @@ export function PostCard({
       <div className="flex gap-3 pt-3">
         <div className="relative flex flex-col items-center">
           {connectTop && <span className="absolute -top-3 h-3 w-0.5 bg-border" aria-hidden />}
-          <Link prefetch={false} href={`/${author.account_id}`} onClick={(e) => e.stopPropagation()} className="rounded-full">
-            <UserAvatar accountId={author.account_id} src={author.avatar_url} size={40} />
-          </Link>
+          <AccountHoverCard accountId={author.account_id}>
+            <Link prefetch={false} href={`/${author.account_id}`} onClick={(e) => e.stopPropagation()} className="rounded-full">
+              <UserAvatar accountId={author.account_id} src={author.avatar_url} size={40} />
+            </Link>
+          </AccountHoverCard>
           {connectBottom && <span className="mt-1 w-0.5 flex-1 bg-border" aria-hidden />}
         </div>
         <div className="min-w-0 flex-1 pb-2">

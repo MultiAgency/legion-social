@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { displayUrl, tokenize } from "@/lib/social/text";
 import { cn } from "@/lib/utils";
+import { AccountHoverCard } from "@/components/account/account-hover-card";
 
 const stop = (e: React.MouseEvent) => e.stopPropagation();
 
@@ -35,9 +36,11 @@ export function RichText({ text, className }: { text: string; className?: string
             );
           case "mention":
             return (
-              <Link prefetch={false} key={i} href={`/${t.accountId}`} className="text-link hover:underline" onClick={stop}>
-                {t.text}
-              </Link>
+              <AccountHoverCard key={i} accountId={t.accountId}>
+                <Link prefetch={false} href={`/${t.accountId}`} className="text-link hover:underline" onClick={stop}>
+                  {t.text}
+                </Link>
+              </AccountHoverCard>
             );
           case "hashtag":
             return (

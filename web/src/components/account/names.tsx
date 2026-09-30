@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { AccountHoverCard } from "./account-hover-card";
 
 /** Display name (falls back to the account ID) + muted @handle, truncating gracefully. */
 export function NameLine({
@@ -23,12 +24,14 @@ export function NameLine({
     </>
   );
   return link ? (
-    <Link prefetch={false}
-      href={`/${accountId}`}
-      className={cn("flex min-w-0 items-baseline gap-1.5 hover:[&>span:first-child]:underline", className)}
-    >
-      {inner}
-    </Link>
+    <AccountHoverCard accountId={accountId}>
+      <Link prefetch={false}
+        href={`/${accountId}`}
+        className={cn("flex min-w-0 items-baseline gap-1.5 hover:[&>span:first-child]:underline", className)}
+      >
+        {inner}
+      </Link>
+    </AccountHoverCard>
   ) : (
     <span className={cn("flex min-w-0 items-baseline gap-1.5", className)}>{inner}</span>
   );
