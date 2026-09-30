@@ -550,7 +550,10 @@ pub async fn stream(app: App) -> HttpResponse {
     });
     HttpResponse::Ok()
         .insert_header((CONTENT_TYPE, "text/event-stream"))
-        .insert_header((CACHE_CONTROL, "no-cache"))
+        // Compression buffers small events (here and at Cloudflare); `no-transform` keeps proxies
+        // from compressing it, `X-Accel-Buffering` keeps nginx from buffering it.
+        .insert_header(actix_web::http::header::ContentEncoding::Identity)
+        .insert_header((CACHE_CONTROL, "no-cache, no-transform"))
         .insert_header(("X-Accel-Buffering", "no"))
         .streaming(events)
 }

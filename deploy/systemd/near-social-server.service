@@ -1,0 +1,29 @@
+[Unit]
+Description=near.social indexer and read API (social-kv/1)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=nearsocial
+Group=nearsocial
+EnvironmentFile=/etc/near-social/server.env
+# Creates /var/lib/near-social owned by the service user.
+StateDirectory=near-social
+WorkingDirectory=/var/lib/near-social
+ExecStart=/opt/near-social/bin/near-social-server
+Restart=always
+RestartSec=3
+# On SIGTERM the server stops tailing and writes a final checkpoint.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/near-social
+
+[Install]
+WantedBy=multi-user.target
