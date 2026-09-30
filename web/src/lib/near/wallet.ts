@@ -21,6 +21,7 @@ import { PublicKey } from "@near-js/crypto";
 import { actionCreators, type Action } from "@near-js/transactions";
 import { env } from "@/lib/env";
 import { SigningError } from "./errors";
+import { disconnectWallet, signInWith } from "./wallet-session";
 
 export const POSTING_METHODS = ["__fastdata_kv", "__fastdata_fastfs"];
 
@@ -77,28 +78,10 @@ function activeAccounts(selector: WalletSelector): string[] {
   return selector.store.getState().accounts.map((a) => a.accountId);
 }
 
-/** Opens the wallet modal and resolves with the signed-in account. */
+/** Opens the wallet modal and resolves with the signed-in account (see wallet-session.ts). */
 export async function signInWithModal(theme?: "dark" | "light"): Promise<string> {
   const { selector, modal } = await getWalletSelector(theme);
-  return new Promise<string>((resolve, reject) => {
-    const signedIn = selector.on("signedIn", (e) => {
-      const accountId = e.accounts.find((a) => a.accountId)?.accountId;
-      if (!accountId) return;
-      cleanup();
-      modal.hide();
-      resolve(accountId);
-    });
-    const hidden = modal.on("onHide", ({ hideReason }) => {
-      if (hideReason !== "user-triggered") return;
-      cleanup();
-      reject(new SigningError("wallet_rejected", "Sign-in was cancelled."));
-    });
-    function cleanup() {
-      signedIn.remove();
-      hidden.remove();
-    }
-    modal.show();
-  });
+  return signInWith(selector, modal);
 }
 
 /** Returns a wallet signed in as `accountId`, asking the user to connect it if needed. */
@@ -167,14 +150,12 @@ export async function revokePostingKey(accountId: string, publicKey: string, the
   await send(accountId, [actionCreators.deleteKey(PublicKey.fromString(publicKey))], theme);
 }
 
-/** Signs the wallet out (best effort). */
+/** Signs the wallet out (best effort; the next sign-in retries if it didn't stick). */
 export async function walletSignOut(): Promise<void> {
   try {
     const { selector } = await getWalletSelector();
-    if (!selector.isSignedIn()) return;
-    const wallet = await selector.wallet();
-    await wallet.signOut();
+    await disconnectWallet(selector);
   } catch {
-    /* already signed out or wallet unavailable */
+    /* wallet selector unavailable */
   }
 }
