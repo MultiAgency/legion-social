@@ -19,7 +19,9 @@
 //!
 //! `GET /v1/legion/{account}` answers whether one account is a member, checking it live if the
 //! indexer hasn't yet: the web app asks it for the signed-in viewer, who may never have written to
-//! `social`. With Legion off it's a 404.
+//! `social`. With Legion off it's a 404. Anyone can call it, so its live checks are capped at
+//! `LIVE_PER_MINUTE` (beyond that it's a 503), and results for accounts the indexer doesn't hold
+//! are kept for `LEGION_REFRESH_SECS` so asking again costs nothing.
 
 use crate::api::AppState;
 use crate::config::Config;
@@ -34,7 +36,7 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const PROJECT_ID: &str = "legion";
@@ -368,6 +370,47 @@ pub async fn watch(checker: &'static Checker, data_dir: PathBuf, state: Arc<RwLo
     }
 }
 
+const LIVE_PER_MINUTE: u32 = 30;
+const LIVE_CACHE_MAX: usize = 10_000;
+
+/// The endpoint's live checks: this minute's budget, and the results for accounts the state
+/// doesn't hold (bounded: past `LIVE_CACHE_MAX` it starts over).
+#[derive(Default)]
+struct Live {
+    results: FxHashMap<String, Check>,
+    window_start_ms: u64,
+    spent: u32,
+}
+
+impl Live {
+    /// A result for the account newer than `stale_ms`.
+    fn cached(&self, account_id: &str, stale_ms: u64) -> Option<Check> {
+        self.results.get(account_id).filter(|check| check.checked_ms >= stale_ms).copied()
+    }
+
+    /// Spends one live check from this minute's budget; false once it's spent.
+    fn take(&mut self, now_ms: u64) -> bool {
+        if now_ms >= self.window_start_ms + 60_000 {
+            self.window_start_ms = now_ms;
+            self.spent = 0;
+        }
+        if self.spent >= LIVE_PER_MINUTE {
+            return false;
+        }
+        self.spent += 1;
+        true
+    }
+
+    fn remember(&mut self, account_id: String, check: Check) {
+        if self.results.len() >= LIVE_CACHE_MAX {
+            self.results.clear();
+        }
+        self.results.insert(account_id, check);
+    }
+}
+
+static LIVE: LazyLock<parking_lot::Mutex<Live>> = LazyLock::new(Default::default);
+
 fn error(status: actix_web::http::StatusCode, error: &str, message: String) -> HttpResponse {
     HttpResponse::build(status)
         .insert_header((CACHE_CONTROL, "no-store"))
@@ -389,21 +432,35 @@ async fn membership(app: web::Data<AppState>, path: web::Path<String>) -> HttpRe
         let s = app.state.read();
         s.aid(&account_id).map(|aid| (aid, s.legion_check(aid)))
     };
+    let now = now_ms();
+    let stale_ms = now.saturating_sub(checker.refresh.as_millis() as u64);
     let check = match known {
         Some((_, Some(check))) => check,
-        aid => match checker.rank(&account_id).await {
-            Ok(rank) => {
-                let check = Check { rank, checked_ms: now_ms() };
-                if let Some((aid, _)) = aid {
-                    app.state.write().record_check(aid, check);
+        aid => {
+            let cached = if aid.is_none() { LIVE.lock().cached(&account_id, stale_ms) } else { None };
+            match cached {
+                Some(check) => check,
+                None => {
+                    if !LIVE.lock().take(now) {
+                        return error(StatusCode::SERVICE_UNAVAILABLE, "busy", "too many membership checks; try again in a minute".into());
+                    }
+                    match checker.rank(&account_id).await {
+                        Ok(rank) => {
+                            let check = Check { rank, checked_ms: now };
+                            match aid {
+                                Some((aid, _)) => app.state.write().record_check(aid, check),
+                                None => LIVE.lock().remember(account_id.clone(), check),
+                            }
+                            check
+                        }
+                        Err(e) => {
+                            tracing::warn!(target: PROJECT_ID, "Can't check {account_id}: {e:#}");
+                            return error(StatusCode::BAD_GATEWAY, "rpc_error", "couldn't reach the Legion contracts".into());
+                        }
+                    }
                 }
-                check
             }
-            Err(e) => {
-                tracing::warn!(target: PROJECT_ID, "Can't check {account_id}: {e:#}");
-                return error(StatusCode::BAD_GATEWAY, "rpc_error", "couldn't reach the Legion contracts".into());
-            }
-        },
+        }
     };
     HttpResponse::Ok()
         .insert_header((CACHE_CONTROL, "private, max-age=60"))

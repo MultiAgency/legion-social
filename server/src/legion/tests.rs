@@ -164,6 +164,29 @@ fn an_accounts_last_check_is_read_back() {
 }
 
 #[test]
+fn live_checks_are_capped_per_minute() {
+    let mut live = Live::default();
+    for _ in 0..LIVE_PER_MINUTE {
+        assert!(live.take(T0));
+    }
+    assert!(!live.take(T0 + 59_999), "the minute's budget is spent");
+    assert!(live.take(T0 + 60_000), "a new minute starts a new budget");
+}
+
+#[test]
+fn live_results_are_reused_until_stale_and_bounded() {
+    let mut live = Live::default();
+    live.remember("x.near".into(), Check { rank: None, checked_ms: T0 });
+    assert_eq!(live.cached("x.near", T0), Some(Check { rank: None, checked_ms: T0 }));
+    assert_eq!(live.cached("x.near", T0 + 1), None, "stale");
+    assert_eq!(live.cached("y.near", 0), None);
+    for i in 0..LIVE_CACHE_MAX {
+        live.remember(format!("a{i}.near"), Check { rank: None, checked_ms: T0 });
+    }
+    assert!(live.results.len() <= LIVE_CACHE_MAX);
+}
+
+#[test]
 fn a_snapshot_restores_checks_for_known_accounts_only() {
     let mut state = three_posts();
     state.enable_legion();
