@@ -12,8 +12,10 @@
 //! like upstream near.social.
 //!
 //! Checks go to `RPC_URL` with `FASTNEAR_AUTH_BEARER_TOKEN` when it's set: FastNEAR's public RPC
-//! answers a burst of unauthenticated views with 429. After a batch with failures the next one
-//! waits twice as long, up to `MAX_BACKOFF`.
+//! answers a burst of unauthenticated views with 429, and takes the key as an `apiKey` query
+//! parameter (it ignores an Authorization header). Errors are logged without their URL, so the key
+//! never reaches the logs. After a batch with failures the next one waits twice as long, up to
+//! `MAX_BACKOFF`.
 
 use crate::config::Config;
 use crate::state::{Aid, State};
@@ -199,7 +201,7 @@ fn parse_supply(response: &Value) -> Result<u64> {
 struct Checker {
     client: reqwest::Client,
     rpc_url: String,
-    bearer: Option<String>,
+    api_key: Option<String>,
     contracts: Vec<(Rank, String)>,
 }
 
@@ -207,8 +209,8 @@ impl Checker {
     async fn holds(&self, contract: &str, account_id: &str) -> Result<bool> {
         let args = serde_json::to_vec(&json!({ "account_id": account_id }))?;
         let mut request = self.client.post(&self.rpc_url);
-        if let Some(token) = &self.bearer {
-            request = request.bearer_auth(token);
+        if let Some(key) = &self.api_key {
+            request = request.query(&[("apiKey", key)]);
         }
         let response: Value = request
             .json(&json!({
@@ -224,10 +226,12 @@ impl Checker {
                 }
             }))
             .send()
-            .await?
-            .error_for_status()?
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(reqwest::Error::without_url)?
             .json()
-            .await?;
+            .await
+            .map_err(reqwest::Error::without_url)?;
         Ok(parse_supply(&response)? > 0)
     }
 
@@ -288,7 +292,7 @@ pub async fn watch(settings: Settings, config: Arc<Config>, state: Arc<RwLock<St
     let checker = Checker {
         client: reqwest::Client::builder().timeout(Duration::from_secs(10)).build().expect("reqwest client"),
         rpc_url: config.rpc_url.clone(),
-        bearer: config.auth_bearer_token.clone(),
+        api_key: config.auth_bearer_token.clone(),
         contracts: settings.contracts,
     };
     let path: PathBuf = config.data_dir.join(SNAPSHOT_FILE);
