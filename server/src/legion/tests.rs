@@ -151,6 +151,19 @@ fn accounts_that_wrote_are_checked_before_accounts_only_followed() {
 }
 
 #[test]
+fn an_accounts_last_check_is_read_back() {
+    let mut state = three_posts();
+    assert_eq!(state.legion_check(state.aid("alice.near").unwrap()), None, "Legion off");
+    state.enable_legion();
+    let alice = state.aid("alice.near").unwrap();
+    assert_eq!(state.legion_check(alice), None, "not checked yet");
+    check(&mut state, "alice.near", Some(Rank::Ascendant), T0);
+    assert_eq!(state.legion_check(alice), Some(Check { rank: Some(Rank::Ascendant), checked_ms: T0 }));
+    check(&mut state, "alice.near", None, T0 + 1);
+    assert_eq!(state.legion_check(alice), Some(Check { rank: None, checked_ms: T0 + 1 }));
+}
+
+#[test]
 fn a_snapshot_restores_checks_for_known_accounts_only() {
     let mut state = three_posts();
     state.enable_legion();

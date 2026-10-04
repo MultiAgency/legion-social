@@ -123,7 +123,8 @@ async fn main() -> Result<()> {
 
     if let Some(settings) = legion::Settings::from_env()? {
         legion::start(&state, &config.data_dir);
-        tokio::spawn(legion::watch(settings, config.clone(), state.clone()));
+        let checker = legion::init_checker(settings, &config);
+        tokio::spawn(legion::watch(checker, config.data_dir.clone(), state.clone()));
     }
 
     let base = &config.public_url;
@@ -160,6 +161,7 @@ async fn main() -> Result<()> {
             .wrap(middleware::Logger::new("%{r}a \"%r\"\t%s %b \"%{User-Agent}i\" %T"))
             .wrap(tracing_actix_web::TracingLogger::default())
             .configure(api::routes)
+            .configure(legion::routes)
     })
     .disable_signals()
     .bind((config.bind.as_str(), config.port))

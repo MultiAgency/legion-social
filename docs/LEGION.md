@@ -30,6 +30,9 @@ transferred). Its **rank** is the highest rank it holds:
   every account on a cycle (one hour by default). A mint or a revocation shows within that cycle.
 - The API adds `rank` (`"initiate"`, `"ascendant"` or `"vanguard"`) to every account object it
   returns: authors, cards and profiles.
+- `GET /v1/legion/{account_id}` answers for one account: `{"account_id", "rank", "checked_at"}`,
+  where `rank` is `null` for a non-member. An account the indexer hasn't checked yet, including
+  one that has never written to `social`, is checked when asked. With Legion off it's a 404.
 
 ## 2. `legion/` keys
 
