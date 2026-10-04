@@ -5,6 +5,7 @@ import { getProfileCached, getViewer, prefetch } from "@/lib/api/server";
 import { isAccountId } from "@/lib/social/standard";
 import { siteName } from "@/lib/brand";
 import { ProfileHeader, ProfileTabs } from "@/components/profile/profile-header";
+import { NonMemberNotice } from "@/components/legion/non-member-notice";
 
 type Params = Promise<{ account: string }>;
 
@@ -49,6 +50,7 @@ export default async function ProfileLayout({
   return (
     <HydrationBoundary state={state}>
       <ProfileHeader account={account} />
+      <NonMemberNotice accountId={account} />
       <ProfileTabs account={account} />
       {children}
     </HydrationBoundary>
