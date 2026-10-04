@@ -1,3 +1,4 @@
+import { siteName } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 /** The near.social mark: an arch ("n") with a dot, on a mint tile. */
@@ -17,10 +18,19 @@ export function BrandMark({ className }: { className?: string }) {
   );
 }
 
+/** The site's name (`siteName`); a dotted name like "near.social" sets its suffix in the link color. */
 export function Wordmark({ className }: { className?: string }) {
+  const dot = siteName.indexOf(".");
   return (
     <span className={cn("text-xl font-bold tracking-tight", className)}>
-      near<span className="text-link">.social</span>
+      {dot > 0 ? (
+        <>
+          {siteName.slice(0, dot)}
+          <span className="text-link">{siteName.slice(dot)}</span>
+        </>
+      ) : (
+        siteName
+      )}
     </span>
   );
 }

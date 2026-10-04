@@ -22,6 +22,7 @@ import { errorMessage, isSigningError } from "@/lib/near/errors";
 import type { KvData } from "@/lib/near/kv";
 import { preloadWallet } from "@/lib/near/wallet-loader";
 import { setOnboarded } from "@/lib/local-store";
+import { siteName } from "@/lib/brand";
 import {
   buildProfileWrite,
   draftFromProfile,
@@ -143,7 +144,7 @@ export function OnboardingView() {
           ) : step === 0 ? (
             <Card>
               <Icon><Wallet className="size-6" /></Icon>
-              <h1 className="mt-4 text-2xl font-extrabold tracking-tight">Welcome to near.social</h1>
+              <h1 className="mt-4 text-2xl font-extrabold tracking-tight">Welcome to {siteName}</h1>
               <p className="mt-2 text-muted-foreground">
                 Connect your NEAR account. If you used the original near.social, we&apos;ll bring
                 your profile and follows over.

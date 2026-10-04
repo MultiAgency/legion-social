@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { RankMark } from "@/components/legion/rank-badge";
+import type { Rank } from "@/lib/legion/rank";
 import { cn } from "@/lib/utils";
 import { AccountHoverCard } from "./account-hover-card";
 
@@ -9,17 +11,20 @@ export function NameLine({
   className,
   link = true,
   handle = true,
+  rank,
 }: {
   accountId: string;
   name: string | null | undefined;
   className?: string;
   link?: boolean;
   handle?: boolean;
+  rank?: Rank;
 }) {
   const display = name?.trim() || accountId;
   const inner = (
     <>
       <span className="truncate font-bold text-foreground">{display}</span>
+      <RankMark rank={rank} />
       {handle && <span className="truncate text-muted-foreground">@{accountId}</span>}
     </>
   );

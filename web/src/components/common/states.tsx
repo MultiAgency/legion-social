@@ -2,6 +2,7 @@ import * as React from "react";
 import { AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { siteName } from "@/lib/brand";
 
 export function EmptyState({
   title,
@@ -25,7 +26,7 @@ export function EmptyState({
 
 export function ErrorState({
   title = "Something went wrong",
-  message = "We couldn't reach the near.social API.",
+  message = `We couldn't reach the ${siteName} API.`,
   onRetry,
   className,
 }: {
