@@ -28,8 +28,8 @@ export function membershipQuery(account: string) {
 }
 
 /**
- * Whether to tell the viewer their posts won't show: Legion is on and they hold no rank. Nothing
- * while loading, on errors, or with Legion off.
+ * Whether to show the account as a non-member, whose posts don't appear: Legion is on and it holds
+ * no rank. Nothing while loading, on errors, or with Legion off.
  */
 export function showsNonMemberNotice(membership: Membership | null | undefined): boolean {
   return membership != null && membership.rank === null;
