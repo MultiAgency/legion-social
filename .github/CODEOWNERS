@@ -1,0 +1,13 @@
+# Everything in this repository needs a code owner's review: someone on the
+# internal team, or the owner. Agents working on this repo can propose changes
+# here but cannot approve or merge them.
+*                        @MultiAgency/internal @jlwaugh
+
+# Workflows run with the repository's secrets, and this file decides who
+# reviews everything else: the owner only, on both branches.
+/.github/                @jlwaugh
+
+# What steers agents and reviews: instructions and review policy.
+/AGENTS.md               @jlwaugh
+/CLAUDE.md               @jlwaugh
+/REVIEW.md               @jlwaugh
