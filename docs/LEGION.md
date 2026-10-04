@@ -32,11 +32,16 @@ transferred). Its **rank** is the highest rank it holds:
   returns: authors, cards and profiles.
 - `GET /v1/legion/{account_id}` answers for one account: `{"account_id", "rank", "checked_at"}`,
   where `rank` is `null` for a non-member. An account the indexer hasn't checked yet, including
-  one that has never written to `social`, is checked when asked. With Legion off it's a 404.
+  one that has never written to `social`, is checked when asked, and so is a stored "not a
+  member" over a minute old. Live checks are capped at 30 a minute for the whole server (past
+  that: `503`, try again shortly); answers for accounts the indexer doesn't hold are kept for the
+  recheck interval. With Legion off it's a 404.
 
 ## 2. `legion/` keys
 
 ### 2.1 Skill tracks
+
+*Specified, not yet indexed:* the server ignores these keys until the skill-tracks task lands.
 
 A member says which Legion skill tracks they work on. Each track is an edge, written the same way
 as a follow (social-kv/1 §2.5):

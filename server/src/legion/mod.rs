@@ -19,7 +19,8 @@
 //!
 //! `GET /v1/legion/{account}` answers whether one account is a member, checking it live if the
 //! indexer hasn't yet: the web app asks it for the signed-in viewer, who may never have written to
-//! `social`. With Legion off it's a 404. Anyone can call it, so its live checks are capped at
+//! `social`, or whose "not a member" is over a minute old. With Legion off it's a 404. Anyone can
+//! call it, so its live checks are capped at
 //! `LIVE_PER_MINUTE` (beyond that it's a 503), and results for accounts the indexer doesn't hold
 //! are kept for `LEGION_REFRESH_SECS` so asking again costs nothing.
 
@@ -205,8 +206,13 @@ impl State {
         Some(Check { rank: members.ranks.get(&aid).copied(), checked_ms })
     }
 
+    /// Records a check unless the account already has a newer one: a watcher batch that started
+    /// before an endpoint check mustn't overwrite it.
     fn record_check(&mut self, aid: Aid, check: Check) {
         let Some(members) = &mut self.legion else { return };
+        if members.checked.get(&aid).is_some_and(|&ms| ms > check.checked_ms) {
+            return;
+        }
         match check.rank {
             Some(rank) => members.ranks.insert(aid, rank),
             None => members.ranks.remove(&aid),
@@ -266,8 +272,26 @@ pub struct Checker {
 /// The one checker, shared by `watch` and the membership endpoint; unset with Legion off.
 static CHECKER: OnceLock<Checker> = OnceLock::new();
 
+/// Turns Legion on if `LEGION_CONTRACTS` is set: restores the snapshot and starts the watcher.
+/// Call after the log is replayed and before the API serves.
+pub fn spawn(state: &Arc<RwLock<State>>, config: &Config) -> Result<()> {
+    let Some(settings) = Settings::from_env()? else { return Ok(()) };
+    start(state, &config.data_dir);
+    let checker = init_checker(settings, config);
+    tokio::spawn(watch(checker, config.data_dir.clone(), state.clone()));
+    Ok(())
+}
+
+/// The agent guide: upstream's, plus the Legion section when Legion is on.
+pub fn skill_md(upstream: String, base: &str) -> String {
+    match CHECKER.get() {
+        Some(_) => upstream + &include_str!("../../../docs/legion-skill.md").replace("{{HOSTNAME}}", base),
+        None => upstream,
+    }
+}
+
 /// Builds the checker from the settings and the server's RPC config.
-pub fn init_checker(settings: Settings, config: &Config) -> &'static Checker {
+fn init_checker(settings: Settings, config: &Config) -> &'static Checker {
     CHECKER.get_or_init(|| Checker {
         client: reqwest::Client::builder().timeout(Duration::from_secs(10)).build().expect("reqwest client"),
         rpc_url: config.rpc_url.clone(),
@@ -360,7 +384,7 @@ pub fn start(state: &RwLock<State>, data_dir: &Path) {
 }
 
 /// Checks due accounts forever, saving a snapshot after each batch.
-pub async fn watch(checker: &'static Checker, data_dir: PathBuf, state: Arc<RwLock<State>>) {
+async fn watch(checker: &'static Checker, data_dir: PathBuf, state: Arc<RwLock<State>>) {
     let path = data_dir.join(SNAPSHOT_FILE);
     let mut delay = TICK;
     loop {
@@ -407,6 +431,19 @@ pub async fn watch(checker: &'static Checker, data_dir: PathBuf, state: Arc<RwLo
 }
 
 const LIVE_PER_MINUTE: u32 = 30;
+/// A stored "not a member" older than this is checked again when asked, so someone who just
+/// minted is let in within a minute, not at the next hourly recheck.
+const NON_MEMBER_RECHECK: Duration = Duration::from_secs(60);
+
+/// Whether the endpoint should check an account live rather than answer from `stored`.
+fn needs_live_check(stored: Option<Check>, now_ms: u64) -> bool {
+    match stored {
+        None => true,
+        Some(check) => {
+            check.rank.is_none() && now_ms.saturating_sub(check.checked_ms) >= NON_MEMBER_RECHECK.as_millis() as u64
+        }
+    }
+}
 const LIVE_CACHE_MAX: usize = 10_000;
 
 /// The endpoint's live checks: this minute's budget, and the results for accounts the state
@@ -464,39 +501,40 @@ async fn membership(app: web::Data<AppState>, path: web::Path<String>) -> HttpRe
     if !crate::model::account_id::is_valid_account_id(&account_id) {
         return error(StatusCode::BAD_REQUEST, "invalid_account_id", format!("invalid account id: {account_id}"));
     }
-    let known = {
-        let s = app.state.read();
-        s.aid(&account_id).map(|aid| (aid, s.legion_check(aid)))
-    };
     let now = now_ms();
     let stale_ms = now.saturating_sub(checker.refresh.as_millis() as u64);
-    let check = match known {
-        Some((_, Some(check))) => check,
-        aid => {
-            let cached = if aid.is_none() { LIVE.lock().cached(&account_id, stale_ms) } else { None };
-            match cached {
-                Some(check) => check,
-                None => {
-                    if !LIVE.lock().take(now) {
-                        return error(StatusCode::SERVICE_UNAVAILABLE, "busy", "too many membership checks; try again in a minute".into());
-                    }
-                    match checker.rank(&account_id).await {
-                        Ok(rank) => {
-                            let check = Check { rank, checked_ms: now };
-                            match aid {
-                                Some((aid, _)) => app.state.write().record_check(aid, check),
-                                None => LIVE.lock().remember(account_id.clone(), check),
-                            }
-                            check
-                        }
-                        Err(e) => {
-                            tracing::warn!(target: PROJECT_ID, "Can't check {account_id}: {e:#}");
-                            return error(StatusCode::BAD_GATEWAY, "rpc_error", "couldn't reach the Legion contracts".into());
-                        }
-                    }
-                }
+    let (aid, stored) = {
+        let s = app.state.read();
+        let aid = s.aid(&account_id);
+        let stored = match aid {
+            Some(aid) => s.legion_check(aid),
+            None => LIVE.lock().cached(&account_id, stale_ms),
+        };
+        (aid, stored)
+    };
+    let check = match stored {
+        Some(check) if !needs_live_check(Some(check), now) => check,
+        _ if !LIVE.lock().take(now) => match stored {
+            // Over budget: an older answer beats none.
+            Some(check) => check,
+            None => {
+                return error(StatusCode::SERVICE_UNAVAILABLE, "busy", "too many membership checks; try again in a minute".into())
             }
-        }
+        },
+        _ => match checker.rank(&account_id).await {
+            Ok(rank) => {
+                let check = Check { rank, checked_ms: now };
+                match aid {
+                    Some(aid) => app.state.write().record_check(aid, check),
+                    None => LIVE.lock().remember(account_id.clone(), check),
+                }
+                check
+            }
+            Err(e) => {
+                tracing::warn!(target: PROJECT_ID, "Can't check {account_id}: {e:#}");
+                return error(StatusCode::BAD_GATEWAY, "rpc_error", "couldn't reach the Legion contracts".into());
+            }
+        },
     };
     HttpResponse::Ok()
         .insert_header((CACHE_CONTROL, "private, max-age=60"))

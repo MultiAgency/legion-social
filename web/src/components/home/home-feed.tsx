@@ -39,14 +39,8 @@ export function HomeFeed() {
           ]}
         />
       </PageHeader>
-      {accountId ? (
-        <>
-          <NonMemberNotice accountId={accountId} />
-          <Composer variant="inline" />
-        </>
-      ) : (
-        <SignInHero />
-      )}
+      {accountId && <NonMemberNotice accountId={accountId} />}
+      {accountId ? <Composer variant="inline" /> : <SignInHero />}
       <Feed
         key={`${tab}:${accountId ?? ""}`}
         spec={spec}
