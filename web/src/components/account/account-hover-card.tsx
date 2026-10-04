@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "@/components/providers/account-provider";
 import { FollowButton } from "@/components/account/follow-button";
 import { UserAvatar } from "@/components/account/user-avatar";
+import { RankBadge } from "@/components/legion/rank-badge";
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,6 +70,7 @@ function AccountPreview({ accountId }: { accountId: string }) {
         </Link>
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
           <span className="break-all">@{accountId}</span>
+          <RankBadge rank={profile.rank} />
           {profile.viewer?.followed_by && <Badge>Follows you</Badge>}
         </div>
       </div>

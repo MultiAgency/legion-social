@@ -237,7 +237,7 @@ export function PostCard({
         <div className="min-w-0 flex-1 pb-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-baseline gap-1 text-[15px] leading-5">
-              <NameLine accountId={author.account_id} name={author.name} className="min-w-0" />
+              <NameLine accountId={author.account_id} name={author.name} rank={author.rank} className="min-w-0" />
               <span className="shrink-0 text-muted-foreground">·</span>
               <Link prefetch={false}
                 href={href}

@@ -5,14 +5,15 @@ import "./globals.css";
 import { Providers } from "@/components/providers/providers";
 import { getViewer } from "@/lib/api/server";
 import { siteUrl } from "@/lib/env";
+import { siteName } from "@/lib/brand";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title: { default: "near.social", template: "%s · near.social" },
+  title: { default: siteName, template: `%s · ${siteName}` },
   description:
-    "near.social: an open social network on NEAR. Every post, like and follow is public data on FastData KV.",
-  applicationName: "near.social",
-  openGraph: { siteName: "near.social", type: "website" },
+    `${siteName}: an open social network on NEAR. Every post, like and follow is public data on FastData KV.`,
+  applicationName: siteName,
+  openGraph: { siteName, type: "website" },
   twitter: { card: "summary" },
 };
 

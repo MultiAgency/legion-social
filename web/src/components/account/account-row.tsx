@@ -17,7 +17,7 @@ export function AccountRow({ card, showAbout = true }: { card: AccountCard; show
       <div className="relative min-w-0 flex-1 pointer-events-none">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <NameLine accountId={card.account_id} name={card.name} link={false} handle={false} />
+            <NameLine accountId={card.account_id} name={card.name} rank={card.rank} link={false} handle={false} />
             <div className="flex items-center gap-1.5 text-[15px] text-muted-foreground">
               <span className="truncate">@{card.account_id}</span>
               {card.viewer?.followed_by && <Badge>Follows you</Badge>}

@@ -3,6 +3,7 @@ import { HydrationBoundary } from "@tanstack/react-query";
 import { qk } from "@/lib/api/queries";
 import { getProfileCached, getViewer, prefetch } from "@/lib/api/server";
 import { isAccountId } from "@/lib/social/standard";
+import { siteName } from "@/lib/brand";
 import { ProfileHeader, ProfileTabs } from "@/components/profile/profile-header";
 
 type Params = Promise<{ account: string }>;
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     const p = await getProfileCached(account, viewer);
     const name = p.name?.trim() || account;
     const title = `${name} (@${account})`;
-    const description = p.about ? truncate(p.about, 200) : `@${account} on near.social`;
+    const description = p.about ? truncate(p.about, 200) : `@${account} on ${siteName}`;
     const images = p.avatar_url ? [{ url: p.avatar_url, width: 400, height: 400, alt: name }] : undefined;
     return {
       title,

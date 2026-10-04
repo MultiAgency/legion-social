@@ -14,6 +14,7 @@ import { FollowButton } from "@/components/account/follow-button";
 import { CollapsibleText } from "@/components/post/post-text";
 import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import { ErrorState } from "@/components/common/states";
+import { RankBadge } from "@/components/legion/rank-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,6 +87,7 @@ export function ProfileHeader({ account }: { account: string }) {
             <h2 className="break-words text-xl font-extrabold leading-tight tracking-tight">{title}</h2>
             <div className="flex flex-wrap items-center gap-2 text-[15px] text-muted-foreground">
               <span className="break-all">@{account}</span>
+              <RankBadge rank={profile?.rank} />
               {profile?.viewer?.followed_by && <Badge>Follows you</Badge>}
             </div>
             {profile?.about && (

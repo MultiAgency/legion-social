@@ -60,7 +60,7 @@ export function QuotedPost({
       <div className="px-3 pt-2.5">
         <div className="flex min-w-0 items-center gap-1.5 text-[15px]">
           <UserAvatar accountId={quote.author.account_id} src={quote.author.avatar_url} size={20} />
-          <NameLine accountId={quote.author.account_id} name={quote.author.name} className="min-w-0" />
+          <NameLine accountId={quote.author.account_id} name={quote.author.name} rank={quote.author.rank} className="min-w-0" />
           <span className="text-muted-foreground">·</span>
           <Link prefetch={false} href={href} className="shrink-0 text-muted-foreground hover:underline" onClick={(e) => e.stopPropagation()}>
             <RelativeTime ms={quote.created_at} />

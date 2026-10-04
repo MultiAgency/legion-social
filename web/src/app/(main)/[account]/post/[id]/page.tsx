@@ -6,6 +6,7 @@ import { feedQuery, qk } from "@/lib/api/queries";
 import { getThreadCached, getViewer, prefetch } from "@/lib/api/server";
 import type { ThreadResponse } from "@/lib/api/types";
 import { isAccountId, isPostId } from "@/lib/social/standard";
+import { siteName } from "@/lib/brand";
 import { ThreadView } from "@/components/thread/thread-view";
 
 type Params = Promise<{ account: string; id: string }>;
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   try {
     const { post } = await getThreadCached(account, id, viewer);
     const name = post.author.name?.trim() || account;
-    const title = `${name} on near.social`;
+    const title = `${name} on ${siteName}`;
     const description = post.text ? truncate(post.text.replace(/\s+/g, " ").trim(), 200) : `A post by @${account}`;
     const media = post.media[0];
     const image = media?.url

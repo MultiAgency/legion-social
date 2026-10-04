@@ -1,3 +1,5 @@
+import type { Rank } from "@/lib/legion/rank";
+
 /**
  * Response shapes of the read API (`/v1`), mirroring docs/API.md.
  * Fields prefixed with `_` are client-only annotations and never come from the server.
@@ -7,6 +9,8 @@ export interface AccountSummary {
   account_id: string;
   name: string | null;
   avatar_url: string | null;
+  /** NEAR Legion rank; absent for non-members and when the server runs without Legion. */
+  rank?: Rank;
 }
 
 export interface ViewerFollowFlags {
@@ -42,6 +46,8 @@ export interface Profile {
   links: Record<string, string>;
   counts: ProfileCounts;
   joined_at: number | null;
+  /** NEAR Legion rank; absent for non-members and when the server runs without Legion. */
+  rank?: Rank;
   viewer?: ViewerFollowFlags;
 }
 
