@@ -210,3 +210,98 @@ fn a_snapshot_restores_checks_for_known_accounts_only() {
     let due: Vec<String> = restored.legion_due(T0, 10).into_iter().map(|(_, name)| name).collect();
     assert_eq!(due, ["carol.near"]);
 }
+
+/// alice.near posts; member carol.near and non-member bob.near each follow alice, like, repost,
+/// reply to and quote her post.
+fn engaged() -> State {
+    let mut state = State::new();
+    state.apply_block(&block(1, vec![("alice.near", json!({ "post/1": { "text": "hi" } }))]));
+    for (height, fan) in [(2, "bob.near"), (3, "carol.near")] {
+        state.apply_block(&block(
+            height,
+            vec![(
+                fan,
+                json!({
+                    "graph/follow/alice.near": {},
+                    "like/alice.near/1": {},
+                    "repost/alice.near/1": {},
+                    "post/2": { "text": "reply", "reply_to": "alice.near/1" },
+                    "post/3": { "text": "quote", "quote": "alice.near/1" },
+                }),
+            )],
+        ));
+    }
+    state
+}
+
+/// Every count the API shows equals the length of the list it describes.
+fn assert_counts_match_lists(state: &State, account: &str) {
+    let aid = state.aid(account).unwrap();
+    let pid = state.pid_by_key[&crate::state::PostKey { author: aid, id: 1 }];
+    let (likes, reposts, replies, quotes) = state.post_counts(pid);
+    assert_eq!(likes as usize, state.post_likers(pid, None, 100).len(), "likes");
+    assert_eq!(reposts as usize, state.post_reposters(pid, None, 100).len(), "reposts");
+    assert_eq!(replies as usize, state.post_replies(pid, 0, 100).0.len(), "replies");
+    assert_eq!(quotes as usize, state.post_quotes(pid, None, 100).len(), "quotes");
+    assert_eq!(state.follower_count(aid), state.followers(aid, None, 100).len(), "followers");
+}
+
+#[test]
+fn counts_leave_out_non_members_and_match_their_lists() {
+    let mut state = engaged();
+    assert_eq!(state.post_counts(0), (2, 2, 2, 2), "Legion off: everyone counts");
+    state.enable_legion();
+    check(&mut state, "alice.near", Some(Rank::Initiate), T0);
+    check(&mut state, "carol.near", Some(Rank::Initiate), T0);
+    check(&mut state, "bob.near", None, T0);
+    let alice = state.aid("alice.near").unwrap();
+    assert_eq!(state.follower_count(alice), 1);
+    assert_eq!(state.post_counts(0), (1, 1, 1, 1), "bob's like, repost, reply and quote don't count");
+    assert_counts_match_lists(&state, "alice.near");
+    let carol = state.aid("carol.near").unwrap();
+    assert_eq!(state.following_count(carol), 1);
+}
+
+#[test]
+fn with_legion_off_the_denylist_keeps_upstreams_counts() {
+    let mut state = engaged();
+    state.set_hidden(&["bob.near".into()]);
+    assert_eq!(state.post_counts(0), (2, 2, 2, 2), "upstream counts denylisted edges; so do we");
+    assert_eq!(state.follower_count(state.aid("alice.near").unwrap()), 2);
+}
+
+#[test]
+fn a_hidden_accounts_profile_reads_as_never_seen() {
+    let mut state = engaged();
+    state.enable_legion();
+    check(&mut state, "alice.near", Some(Rank::Initiate), T0);
+    check(&mut state, "bob.near", None, T0);
+    let ctx = crate::api::dto::Ctx { state: &state, viewer: None, gateway: "", site_hosts: &[], unfurl: None };
+    let bob = ctx.profile("bob.near", state.aid("bob.near"));
+    assert!(!bob.has_profile);
+    let own = crate::api::dto::Ctx { state: &state, viewer: state.aid("bob.near"), gateway: "", site_hosts: &[], unfurl: None };
+    let bob_sees = own.profile("bob.near", state.aid("bob.near"));
+    assert_eq!(bob_sees.account_id, "bob.near");
+    assert!(bob_sees.joined_at.is_some(), "bob's own profile isn't blanked, so onboarding won't overwrite it");
+    assert_eq!((bob.counts.followers, bob.counts.following, bob.counts.posts), (0, 0, 0));
+    let alice = ctx.profile("alice.near", state.aid("alice.near"));
+    assert_eq!(alice.counts.followers, 0, "bob's follow doesn't count, and carol is unchecked");
+    assert_eq!(alice.counts.posts, 1);
+}
+
+#[test]
+fn a_hidden_accounts_own_lists_and_summary_read_as_never_seen() {
+    let mut state = engaged();
+    state.apply_block(&block(4, vec![("bob.near", json!({ "profile/name": "Bob" }))]));
+    state.enable_legion();
+    check(&mut state, "alice.near", Some(Rank::Initiate), T0);
+    check(&mut state, "bob.near", None, T0);
+    let bob = state.aid("bob.near").unwrap();
+    assert!(state.account_feed(bob, crate::state::query::ProfileTab::Posts, None, 100).is_empty(), "bob's repost of alice");
+    assert!(state.account_likes(bob, None, 100).is_empty());
+    assert!(state.following(bob, None, 100).is_empty());
+    assert!(state.followers(bob, None, 100).is_empty());
+    let ctx = crate::api::dto::Ctx { state: &state, viewer: None, gateway: "", site_hosts: &[], unfurl: None };
+    let summary = ctx.summary(bob);
+    assert_eq!((summary.account_id, summary.name, summary.avatar_url), ("bob.near", None, None));
+}

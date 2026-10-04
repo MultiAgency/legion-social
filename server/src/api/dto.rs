@@ -197,12 +197,14 @@ impl<'a> Ctx<'a> {
         media_url(self.gateway, uri)
     }
 
+    /// A non-member named by a member's post (e.g. a reply's parent) shows its ID only.
     pub fn summary(&self, aid: Aid) -> AccountSummary<'a> {
         let account = self.state.account(aid);
+        let profile = (!self.state.is_outside_legion(aid)).then_some(&account.profile);
         AccountSummary {
             account_id: &account.name,
-            name: account.profile.name.as_deref(),
-            avatar_url: account.profile.avatar.as_deref().map(|a| self.url(a)),
+            name: profile.and_then(|p| p.name.as_deref()),
+            avatar_url: profile.and_then(|p| p.avatar.as_deref()).map(|a| self.url(a)),
             rank: self.state.rank(aid),
         }
     }
@@ -222,7 +224,7 @@ impl<'a> Ctx<'a> {
             name: account.profile.name.as_deref(),
             avatar_url: account.profile.avatar.as_deref().map(|a| self.url(a)),
             about: account.profile.about.as_deref().map(|a| truncate_chars(a, CARD_ABOUT_CHARS)),
-            followers: account.followers.len(),
+            followers: self.state.follower_count(aid),
             rank: self.state.rank(aid),
             viewer: self.account_viewer(aid),
             cursor,
@@ -233,9 +235,11 @@ impl<'a> Ctx<'a> {
         list.iter().map(|&(seq, aid)| self.card(aid, seq.to_string())).collect()
     }
 
-    /// A profile for any valid account ID (`aid` is `None` for accounts never seen).
+    /// A profile for any valid account ID (`aid` is `None` for accounts never seen). A non-member
+    /// reads as never seen, except to itself: its own profile must not look empty, or the web app
+    /// would send it to onboarding over the profile it has.
     pub fn profile(&self, account_id: &'a str, aid: Option<Aid>) -> ProfileDto<'a> {
-        let Some(aid) = aid else {
+        let Some(aid) = aid.filter(|&aid| !self.state.is_outside_legion(aid) || self.viewer == Some(aid)) else {
             return ProfileDto {
                 account_id,
                 has_profile: false,
@@ -279,8 +283,8 @@ impl<'a> Ctx<'a> {
                 .map(|(k, v)| (&**k, &**v))
                 .collect(),
             counts: ProfileCounts {
-                followers: account.followers.len(),
-                following: account.following.len(),
+                followers: self.state.follower_count(aid),
+                following: self.state.following_count(aid),
                 posts: account.live_posts,
             },
             joined_at: account.joined_ms,
@@ -334,11 +338,9 @@ impl<'a> Ctx<'a> {
             quote,
             mentions: body.mentions.iter().map(|&a| &*self.state.account(a).name).collect(),
             hashtags: body.hashtags.iter().map(|t| &**t).collect(),
-            counts: PostCounts {
-                replies: post.replies,
-                reposts: post.reposts,
-                likes: post.likes,
-                quotes: post.quotes,
+            counts: {
+                let (likes, reposts, replies, quotes) = self.state.post_counts(pid);
+                PostCounts { replies, reposts, likes, quotes }
             },
             viewer: self.viewer.map(|v| PostViewer {
                 liked: self.state.likes.contains_key(&(v, pid)),
