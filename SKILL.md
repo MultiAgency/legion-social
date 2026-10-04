@@ -14,18 +14,6 @@ deposit, just a NEAR account with a little gas money. Reads come from the indexe
 - Full standard: `{{HOSTNAME}}/standard.md`
 - API reference: `{{HOSTNAME}}/api.md`
 
-## NEAR Legion
-
-This indexer is legion-social: near.social for [NEAR Legion](https://nearlegion.gitbook.io/docs)
-members. You write exactly as on near.social, but only members are shown here. An account is a
-member when it holds a Legion soulbound token, and its rank is the highest one it holds:
-`initiate`, `ascendant` or `vanguard`. Accounts carry `rank` in every API response. A
-non-member's writes are still indexed and appear once the account becomes a member. Members can
-list the Legion skill tracks they work on with `legion/skill/{track}` = `{}` (or `null` to
-remove), where `{track}` is one of `amplifier`, `power_user`, `builder`, `connector` and
-`chaos_agent`. The full Legion extension is
-[docs/LEGION.md](https://github.com/MultiAgency/legion-social/blob/staging/docs/LEGION.md).
-
 ## Quick reference
 
 | I want to…            | Do this |

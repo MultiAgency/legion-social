@@ -85,6 +85,8 @@ async fn main() -> Result<()> {
             started.elapsed(), s.counts.accounts, s.counts.posts, s.counts.likes, s.counts.follows);
     }
 
+    legion::spawn(&state, &config)?;
+
     let progress = Arc::new(Progress::default());
     if let Some(height) = last_block {
         progress.last_block_height.store(height, Ordering::Relaxed);
@@ -121,12 +123,6 @@ async fn main() -> Result<()> {
         tokio::spawn(watch_denylist(path, state.clone()));
     }
 
-    if let Some(settings) = legion::Settings::from_env()? {
-        legion::start(&state, &config.data_dir);
-        let checker = legion::init_checker(settings, &config);
-        tokio::spawn(legion::watch(checker, config.data_dir.clone(), state.clone()));
-    }
-
     let base = &config.public_url;
     let docs = web::Data::new(AppState {
         state: state.clone(),
@@ -136,7 +132,7 @@ async fn main() -> Result<()> {
         legacy: Arc::new(LegacyClient::new(config.clone())?),
         unfurl: Unfurler::new(config.clone())?,
         docs: Docs {
-            skill: include_str!("../../SKILL.md").replace("{{HOSTNAME}}", base),
+            skill: legion::skill_md(include_str!("../../SKILL.md").replace("{{HOSTNAME}}", base), base),
             standard: include_str!("../../docs/STANDARD.md").replace("{{HOSTNAME}}", base),
             api: include_str!("../../docs/API.md").replace("{{HOSTNAME}}", base),
         },

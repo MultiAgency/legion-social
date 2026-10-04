@@ -305,3 +305,25 @@ fn a_hidden_accounts_own_lists_and_summary_read_as_never_seen() {
     let summary = ctx.summary(bob);
     assert_eq!((summary.account_id, summary.name, summary.avatar_url), ("bob.near", None, None));
 }
+
+#[test]
+fn an_older_check_never_overwrites_a_newer_one() {
+    let mut state = three_posts();
+    state.enable_legion();
+    let alice = state.aid("alice.near").unwrap();
+    check(&mut state, "alice.near", Some(Rank::Initiate), T0 + 10);
+    check(&mut state, "alice.near", None, T0);
+    assert_eq!(state.rank(alice), Some(Rank::Initiate), "a batch that started earlier lost the race");
+    check(&mut state, "alice.near", None, T0 + 20);
+    assert_eq!(state.rank(alice), None);
+}
+
+#[test]
+fn the_endpoint_rechecks_a_non_member_after_a_minute_and_trusts_members() {
+    let non = |ms| Some(Check { rank: None, checked_ms: ms });
+    let member = |ms| Some(Check { rank: Some(Rank::Initiate), checked_ms: ms });
+    assert!(needs_live_check(None, T0));
+    assert!(!needs_live_check(non(T0), T0 + 59_999));
+    assert!(needs_live_check(non(T0), T0 + 60_000));
+    assert!(!needs_live_check(member(T0), T0 + 86_400_000));
+}

@@ -1,5 +1,4 @@
 import { apiUrl } from "@/lib/api/client";
-import { siteName } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +23,7 @@ export async function GET() {
       },
     });
   } catch {
-    return new Response(`The ${siteName} API is unreachable.\n`, {
+    return new Response("The near.social API is unreachable.\n", {
       status: 502,
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
