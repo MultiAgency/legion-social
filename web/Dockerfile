@@ -22,7 +22,8 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_SITE_NAME=$NEXT_PUBLIC_SITE_NAME \
     NEXT_OUTPUT=standalone \
     NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+# The repo has no public/ yet; the runtime stage copies it either way.
+RUN mkdir -p public && npm run build
 
 FROM node:22-bookworm-slim
 WORKDIR /app
