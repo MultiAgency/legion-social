@@ -22,7 +22,7 @@
 //! `social`, or whose "not a member" is over a minute old. With Legion off it's a 404. Anyone can
 //! call it, so its live checks are capped at
 //! `LIVE_PER_MINUTE` (beyond that it's a 503), and results for accounts the indexer doesn't hold
-//! are kept for `LEGION_REFRESH_SECS` so asking again costs nothing.
+//! are cached: a member answer for `LEGION_REFRESH_SECS`, a "not a member" for a minute.
 
 use crate::api::AppState;
 use crate::config::Config;

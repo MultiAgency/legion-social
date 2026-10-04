@@ -34,8 +34,8 @@ transferred). Its **rank** is the highest rank it holds:
   where `rank` is `null` for a non-member. An account the indexer hasn't checked yet, including
   one that has never written to `social`, is checked when asked, and so is a stored "not a
   member" over a minute old. Live checks are capped at 30 a minute for the whole server (past
-  that: `503`, try again shortly); answers for accounts the indexer doesn't hold are kept for the
-  recheck interval. With Legion off it's a 404.
+  that: `503`, try again shortly); answers for accounts the indexer doesn't hold are cached, a
+  member answer for the recheck interval and a "not a member" for a minute. With Legion off it's a 404.
 
 ## 2. `legion/` keys
 
