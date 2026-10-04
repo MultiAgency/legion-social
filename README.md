@@ -1,3 +1,10 @@
+# legion-social
+
+near.social for [NEAR Legion](https://nearlegion.gitbook.io/docs) members: a fork of
+[near-social-kv](https://github.com/evgenykuzyakov/near-social-kv) whose indexer shows only
+Legion members, ranked by their soulbound tokens. Set `LEGION_CONTRACTS` to turn it on
+([`docs/LEGION.md`](docs/LEGION.md)); unset, everything below works as upstream.
+
 # near.social on FastData KV
 
 A fast, Twitter-style social network on NEAR.

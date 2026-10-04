@@ -5,6 +5,7 @@ use crate::state::query::LinkTarget;
 use crate::unfurl::{self, Preview, Unfurler};
 use std::sync::Arc;
 use crate::state::query::{FeedEntry, NotifGroup};
+use crate::legion::Rank;
 use crate::state::{Aid, NotifKind, Pid, Seq, State};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -25,6 +26,8 @@ pub struct AccountSummary<'a> {
     pub account_id: &'a str,
     pub name: Option<&'a str>,
     pub avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rank: Option<Rank>,
 }
 
 #[derive(Serialize)]
@@ -40,6 +43,8 @@ pub struct AccountCard<'a> {
     pub avatar_url: Option<String>,
     pub about: Option<String>,
     pub followers: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rank: Option<Rank>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub viewer: Option<AccountViewer>,
     pub cursor: String,
@@ -66,6 +71,8 @@ pub struct ProfileDto<'a> {
     pub links: BTreeMap<&'a str, &'a str>,
     pub counts: ProfileCounts,
     pub joined_at: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rank: Option<Rank>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub viewer: Option<AccountViewer>,
 }
@@ -196,6 +203,7 @@ impl<'a> Ctx<'a> {
             account_id: &account.name,
             name: account.profile.name.as_deref(),
             avatar_url: account.profile.avatar.as_deref().map(|a| self.url(a)),
+            rank: self.state.rank(aid),
         }
     }
 
@@ -215,6 +223,7 @@ impl<'a> Ctx<'a> {
             avatar_url: account.profile.avatar.as_deref().map(|a| self.url(a)),
             about: account.profile.about.as_deref().map(|a| truncate_chars(a, CARD_ABOUT_CHARS)),
             followers: account.followers.len(),
+            rank: self.state.rank(aid),
             viewer: self.account_viewer(aid),
             cursor,
         }
@@ -244,6 +253,7 @@ impl<'a> Ctx<'a> {
                     posts: 0,
                 },
                 joined_at: None,
+                rank: None,
                 viewer: self.viewer.map(|_| AccountViewer {
                     following: false,
                     followed_by: false,
@@ -274,6 +284,7 @@ impl<'a> Ctx<'a> {
                 posts: account.live_posts,
             },
             joined_at: account.joined_ms,
+            rank: self.state.rank(aid),
             viewer: self.account_viewer(aid),
         }
     }
