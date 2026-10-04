@@ -10,7 +10,12 @@
 //! Until an account is checked, and while it isn't a member, it's hidden like a denylisted one
 //! (`State::is_hidden`). With `LEGION_CONTRACTS` unset none of this runs, and the server behaves
 //! like upstream near.social.
+//!
+//! Checks go to `RPC_URL` with `FASTNEAR_AUTH_BEARER_TOKEN` when it's set: FastNEAR's public RPC
+//! answers a burst of unauthenticated views with 429. After a batch with failures the next one
+//! waits twice as long, up to `MAX_BACKOFF`.
 
+use crate::config::Config;
 use crate::state::{Aid, State};
 use anyhow::{bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -26,6 +31,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const PROJECT_ID: &str = "legion";
 const SNAPSHOT_FILE: &str = "legion.json";
 const TICK: Duration = Duration::from_secs(10);
+const MAX_BACKOFF: Duration = Duration::from_secs(320);
 /// Accounts checked per tick, so a large first pass doesn't flood the RPC.
 const BATCH: usize = 200;
 const CONCURRENCY: usize = 8;
@@ -193,15 +199,18 @@ fn parse_supply(response: &Value) -> Result<u64> {
 struct Checker {
     client: reqwest::Client,
     rpc_url: String,
+    bearer: Option<String>,
     contracts: Vec<(Rank, String)>,
 }
 
 impl Checker {
     async fn holds(&self, contract: &str, account_id: &str) -> Result<bool> {
         let args = serde_json::to_vec(&json!({ "account_id": account_id }))?;
-        let response: Value = self
-            .client
-            .post(&self.rpc_url)
+        let mut request = self.client.post(&self.rpc_url);
+        if let Some(token) = &self.bearer {
+            request = request.bearer_auth(token);
+        }
+        let response: Value = request
             .json(&json!({
                 "jsonrpc": "2.0",
                 "id": PROJECT_ID,
@@ -230,6 +239,16 @@ impl Checker {
             held.push((*rank, self.holds(contract, account_id).await?));
         }
         Ok(highest(held))
+    }
+}
+
+/// How long to wait before the next batch: one tick after a clean batch, twice the last wait
+/// (up to `MAX_BACKOFF`) after one with failures.
+fn next_delay(last: Duration, failed: bool) -> Duration {
+    if failed {
+        (last * 2).min(MAX_BACKOFF)
+    } else {
+        TICK
     }
 }
 
@@ -265,19 +284,20 @@ pub fn start(state: &RwLock<State>, data_dir: &Path) {
 }
 
 /// Checks due accounts forever, saving a snapshot after each batch.
-pub async fn watch(settings: Settings, rpc_url: String, data_dir: PathBuf, state: Arc<RwLock<State>>) {
+pub async fn watch(settings: Settings, config: Arc<Config>, state: Arc<RwLock<State>>) {
     let checker = Checker {
         client: reqwest::Client::builder().timeout(Duration::from_secs(10)).build().expect("reqwest client"),
-        rpc_url,
+        rpc_url: config.rpc_url.clone(),
+        bearer: config.auth_bearer_token.clone(),
         contracts: settings.contracts,
     };
-    let path = data_dir.join(SNAPSHOT_FILE);
-    let mut interval = tokio::time::interval(TICK);
+    let path: PathBuf = config.data_dir.join(SNAPSHOT_FILE);
+    let mut delay = TICK;
     loop {
-        interval.tick().await;
         let started = now_ms();
         let due = state.read().legion_due(started.saturating_sub(settings.refresh.as_millis() as u64), BATCH);
         if due.is_empty() {
+            tokio::time::sleep(TICK).await;
             continue;
         }
         let results: Vec<(Aid, String, Result<Option<Rank>>)> = stream::iter(due)
@@ -308,10 +328,12 @@ pub async fn watch(settings: Settings, rpc_url: String, data_dir: PathBuf, state
             }
             s.legion_snapshot()
         };
-        tracing::info!(target: PROJECT_ID, "Checked {checked} accounts ({failed} failed)");
         if let Err(e) = save_snapshot(&path, &snapshot) {
             tracing::warn!(target: PROJECT_ID, "Can't save {}: {e:#}", path.display());
         }
+        delay = next_delay(delay, failed > 0);
+        tracing::info!(target: PROJECT_ID, "Checked {checked} accounts ({failed} failed); next batch in {delay:?}");
+        tokio::time::sleep(delay).await;
     }
 }
 

@@ -123,7 +123,7 @@ async fn main() -> Result<()> {
 
     if let Some(settings) = legion::Settings::from_env()? {
         legion::start(&state, &config.data_dir);
-        tokio::spawn(legion::watch(settings, config.rpc_url.clone(), config.data_dir.clone(), state.clone()));
+        tokio::spawn(legion::watch(settings, config.clone(), state.clone()));
     }
 
     let base = &config.public_url;

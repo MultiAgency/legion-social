@@ -78,6 +78,15 @@ fn supply_is_read_from_the_rpc_result() {
 }
 
 #[test]
+fn failed_batches_back_off_and_a_clean_one_resets() {
+    assert_eq!(next_delay(TICK, false), TICK);
+    assert_eq!(next_delay(TICK, true), TICK * 2);
+    assert_eq!(next_delay(TICK * 2, true), TICK * 4);
+    assert_eq!(next_delay(MAX_BACKOFF, true), MAX_BACKOFF);
+    assert_eq!(next_delay(MAX_BACKOFF, false), TICK);
+}
+
+#[test]
 fn legion_off_shows_everyone_like_upstream() {
     let state = three_posts();
     assert_eq!(authors(&state), ["alice.near", "bob.near", "carol.near"]);
