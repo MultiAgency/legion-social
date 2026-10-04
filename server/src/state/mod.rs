@@ -814,11 +814,6 @@ impl State {
     pub fn is_hidden(&self, aid: Aid) -> bool {
         self.hidden.contains(&aid) || self.is_outside_legion(aid)
     }
-
-    /// Whether any account may be hidden; while none is, the stored counters are what readers see.
-    pub fn hides_any(&self) -> bool {
-        !self.hidden.is_empty() || self.legion.is_some()
-    }
 }
 
 #[cfg(test)]

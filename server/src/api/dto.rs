@@ -197,10 +197,10 @@ impl<'a> Ctx<'a> {
         media_url(self.gateway, uri)
     }
 
-    /// A hidden account (named by a visible post, e.g. as the parent of a reply) shows its ID only.
+    /// A non-member named by a member's post (e.g. a reply's parent) shows its ID only.
     pub fn summary(&self, aid: Aid) -> AccountSummary<'a> {
         let account = self.state.account(aid);
-        let profile = (!self.state.is_hidden(aid)).then_some(&account.profile);
+        let profile = (!self.state.is_outside_legion(aid)).then_some(&account.profile);
         AccountSummary {
             account_id: &account.name,
             name: profile.and_then(|p| p.name.as_deref()),
@@ -235,10 +235,11 @@ impl<'a> Ctx<'a> {
         list.iter().map(|&(seq, aid)| self.card(aid, seq.to_string())).collect()
     }
 
-    /// A profile for any valid account ID (`aid` is `None` for accounts never seen). A hidden
-    /// account's profile reads as never seen.
+    /// A profile for any valid account ID (`aid` is `None` for accounts never seen). A non-member
+    /// reads as never seen, except to itself: its own profile must not look empty, or the web app
+    /// would send it to onboarding over the profile it has.
     pub fn profile(&self, account_id: &'a str, aid: Option<Aid>) -> ProfileDto<'a> {
-        let Some(aid) = aid.filter(|&aid| !self.state.is_hidden(aid)) else {
+        let Some(aid) = aid.filter(|&aid| !self.state.is_outside_legion(aid) || self.viewer == Some(aid)) else {
             return ProfileDto {
                 account_id,
                 has_profile: false,

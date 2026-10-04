@@ -25,7 +25,7 @@
 
 use crate::api::AppState;
 use crate::config::Config;
-use crate::state::{Aid, State};
+use crate::state::{Aid, Pid, State};
 use actix_web::http::header::CACHE_CONTROL;
 use actix_web::{web, HttpResponse};
 use anyhow::{bail, Context, Result};
@@ -160,6 +160,42 @@ impl State {
             .take(limit)
             .map(|aid| (aid, self.account(aid).name.to_string()))
             .collect()
+    }
+
+    // ---- What readers see ----
+    //
+    // Upstream keeps counters at write time, so they would include non-members' follows, likes,
+    // reposts, replies and quotes. With Legion on, a count is the length of the list the API
+    // serves, using upstream's own list queries, so the two always agree. With Legion off, these
+    // are upstream's stored counters.
+
+    pub fn follower_count(&self, aid: Aid) -> usize {
+        match self.legion {
+            None => self.account(aid).followers.len(),
+            Some(_) => self.followers(aid, None, usize::MAX).len(),
+        }
+    }
+
+    pub fn following_count(&self, aid: Aid) -> usize {
+        match self.legion {
+            None => self.account(aid).following.len(),
+            Some(_) => self.following(aid, None, usize::MAX).len(),
+        }
+    }
+
+    /// (likes, reposts, replies, quotes).
+    pub fn post_counts(&self, pid: Pid) -> (u32, u32, u32, u32) {
+        let post = self.post(pid);
+        if self.legion.is_none() {
+            return (post.likes, post.reposts, post.replies, post.quotes);
+        }
+        let n = |len: usize| len as u32;
+        (
+            n(self.post_likers(pid, None, usize::MAX).len()),
+            n(self.post_reposters(pid, None, usize::MAX).len()),
+            n(self.post_replies(pid, 0, usize::MAX).0.len()),
+            n(self.post_quotes(pid, None, usize::MAX).len()),
+        )
     }
 
     /// The account's last check, if it has had one.

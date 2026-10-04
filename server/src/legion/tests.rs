@@ -263,11 +263,11 @@ fn counts_leave_out_non_members_and_match_their_lists() {
 }
 
 #[test]
-fn the_denylist_leaves_its_accounts_out_of_counts_too() {
+fn with_legion_off_the_denylist_keeps_upstreams_counts() {
     let mut state = engaged();
     state.set_hidden(&["bob.near".into()]);
-    assert_eq!(state.post_counts(0), (1, 1, 1, 1));
-    assert_counts_match_lists(&state, "alice.near");
+    assert_eq!(state.post_counts(0), (2, 2, 2, 2), "upstream counts denylisted edges; so do we");
+    assert_eq!(state.follower_count(state.aid("alice.near").unwrap()), 2);
 }
 
 #[test]
@@ -279,6 +279,10 @@ fn a_hidden_accounts_profile_reads_as_never_seen() {
     let ctx = crate::api::dto::Ctx { state: &state, viewer: None, gateway: "", site_hosts: &[], unfurl: None };
     let bob = ctx.profile("bob.near", state.aid("bob.near"));
     assert!(!bob.has_profile);
+    let own = crate::api::dto::Ctx { state: &state, viewer: state.aid("bob.near"), gateway: "", site_hosts: &[], unfurl: None };
+    let bob_sees = own.profile("bob.near", state.aid("bob.near"));
+    assert_eq!(bob_sees.account_id, "bob.near");
+    assert!(bob_sees.joined_at.is_some(), "bob's own profile isn't blanked, so onboarding won't overwrite it");
     assert_eq!((bob.counts.followers, bob.counts.following, bob.counts.posts), (0, 0, 0));
     let alice = ctx.profile("alice.near", state.aid("alice.near"));
     assert_eq!(alice.counts.followers, 0, "bob's follow doesn't count, and carol is unchecked");
