@@ -20,7 +20,7 @@ export function NonMemberNotice({ accountId }: { accountId: string }) {
         <a href={MINT_URL} target="_blank" rel="noopener noreferrer" className="text-link hover:underline">
           Mint your Initiate token
         </a>
-        . Your posts show here within the hour.
+        , and your posts show here shortly after.
       </p>
     </section>
   );
