@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "@/components/providers/account-provider";
 import { Composer } from "@/components/composer/composer";
 import { Feed } from "@/components/feed/feed";
+import { NonMemberNotice } from "@/components/legion/non-member-notice";
 import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import { homeFeed, qk } from "@/lib/api/queries";
 import { siteName } from "@/lib/brand";
@@ -38,7 +39,14 @@ export function HomeFeed() {
           ]}
         />
       </PageHeader>
-      {accountId ? <Composer variant="inline" /> : <SignInHero />}
+      {accountId ? (
+        <>
+          <NonMemberNotice accountId={accountId} />
+          <Composer variant="inline" />
+        </>
+      ) : (
+        <SignInHero />
+      )}
       <Feed
         key={`${tab}:${accountId ?? ""}`}
         spec={spec}

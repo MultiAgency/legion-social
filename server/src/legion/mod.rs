@@ -16,9 +16,16 @@
 //! parameter (it ignores an Authorization header). Errors are logged without their URL, so the key
 //! never reaches the logs. After a batch with failures the next one waits twice as long, up to
 //! `MAX_BACKOFF`.
+//!
+//! `GET /v1/legion/{account}` answers whether one account is a member, checking it live if the
+//! indexer hasn't yet: the web app asks it for the signed-in viewer, who may never have written to
+//! `social`. With Legion off it's a 404.
 
+use crate::api::AppState;
 use crate::config::Config;
 use crate::state::{Aid, State};
+use actix_web::http::header::CACHE_CONTROL;
+use actix_web::{web, HttpResponse};
 use anyhow::{bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use futures::{stream, StreamExt};
@@ -27,7 +34,7 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const PROJECT_ID: &str = "legion";
@@ -153,6 +160,13 @@ impl State {
             .collect()
     }
 
+    /// The account's last check, if it has had one.
+    fn legion_check(&self, aid: Aid) -> Option<Check> {
+        let members = self.legion.as_ref()?;
+        let &checked_ms = members.checked.get(&aid)?;
+        Some(Check { rank: members.ranks.get(&aid).copied(), checked_ms })
+    }
+
     fn record_check(&mut self, aid: Aid, check: Check) {
         let Some(members) = &mut self.legion else { return };
         match check.rank {
@@ -203,11 +217,26 @@ fn parse_supply(response: &Value) -> Result<u64> {
     Ok(supply.parse()?)
 }
 
-struct Checker {
+pub struct Checker {
     client: reqwest::Client,
     rpc_url: String,
     api_key: Option<String>,
     contracts: Vec<(Rank, String)>,
+    refresh: Duration,
+}
+
+/// The one checker, shared by `watch` and the membership endpoint; unset with Legion off.
+static CHECKER: OnceLock<Checker> = OnceLock::new();
+
+/// Builds the checker from the settings and the server's RPC config.
+pub fn init_checker(settings: Settings, config: &Config) -> &'static Checker {
+    CHECKER.get_or_init(|| Checker {
+        client: reqwest::Client::builder().timeout(Duration::from_secs(10)).build().expect("reqwest client"),
+        rpc_url: config.rpc_url.clone(),
+        api_key: config.auth_bearer_token.clone(),
+        contracts: settings.contracts,
+        refresh: settings.refresh,
+    })
 }
 
 impl Checker {
@@ -293,25 +322,18 @@ pub fn start(state: &RwLock<State>, data_dir: &Path) {
 }
 
 /// Checks due accounts forever, saving a snapshot after each batch.
-pub async fn watch(settings: Settings, config: Arc<Config>, state: Arc<RwLock<State>>) {
-    let checker = Checker {
-        client: reqwest::Client::builder().timeout(Duration::from_secs(10)).build().expect("reqwest client"),
-        rpc_url: config.rpc_url.clone(),
-        api_key: config.auth_bearer_token.clone(),
-        contracts: settings.contracts,
-    };
-    let path: PathBuf = config.data_dir.join(SNAPSHOT_FILE);
+pub async fn watch(checker: &'static Checker, data_dir: PathBuf, state: Arc<RwLock<State>>) {
+    let path = data_dir.join(SNAPSHOT_FILE);
     let mut delay = TICK;
     loop {
         let started = now_ms();
-        let due = state.read().legion_due(started.saturating_sub(settings.refresh.as_millis() as u64), BATCH);
+        let due = state.read().legion_due(started.saturating_sub(checker.refresh.as_millis() as u64), BATCH);
         if due.is_empty() {
             tokio::time::sleep(TICK).await;
             continue;
         }
         let results: Vec<(Aid, String, Result<Option<Rank>>)> = stream::iter(due)
             .map(|(aid, name)| {
-                let checker = &checker;
                 async move {
                     let rank = checker.rank(&name).await;
                     (aid, name, rank)
@@ -344,6 +366,52 @@ pub async fn watch(settings: Settings, config: Arc<Config>, state: Arc<RwLock<St
         tracing::info!(target: PROJECT_ID, "Checked {checked} accounts ({failed} failed); next batch in {delay:?}");
         tokio::time::sleep(delay).await;
     }
+}
+
+fn error(status: actix_web::http::StatusCode, error: &str, message: String) -> HttpResponse {
+    HttpResponse::build(status)
+        .insert_header((CACHE_CONTROL, "no-store"))
+        .json(json!({ "error": error, "message": message }))
+}
+
+/// `GET /v1/legion/{account}`: `{account_id, rank, checked_at}`, where `rank` is null for a
+/// non-member. An account the indexer hasn't checked yet is checked now.
+async fn membership(app: web::Data<AppState>, path: web::Path<String>) -> HttpResponse {
+    use actix_web::http::StatusCode;
+    let account_id = path.into_inner();
+    let Some(checker) = CHECKER.get() else {
+        return error(StatusCode::NOT_FOUND, "not_found", "this server runs without Legion".into());
+    };
+    if !crate::model::account_id::is_valid_account_id(&account_id) {
+        return error(StatusCode::BAD_REQUEST, "invalid_account_id", format!("invalid account id: {account_id}"));
+    }
+    let known = {
+        let s = app.state.read();
+        s.aid(&account_id).map(|aid| (aid, s.legion_check(aid)))
+    };
+    let check = match known {
+        Some((_, Some(check))) => check,
+        aid => match checker.rank(&account_id).await {
+            Ok(rank) => {
+                let check = Check { rank, checked_ms: now_ms() };
+                if let Some((aid, _)) = aid {
+                    app.state.write().record_check(aid, check);
+                }
+                check
+            }
+            Err(e) => {
+                tracing::warn!(target: PROJECT_ID, "Can't check {account_id}: {e:#}");
+                return error(StatusCode::BAD_GATEWAY, "rpc_error", "couldn't reach the Legion contracts".into());
+            }
+        },
+    };
+    HttpResponse::Ok()
+        .insert_header((CACHE_CONTROL, "private, max-age=60"))
+        .json(json!({ "account_id": account_id, "rank": check.rank, "checked_at": check.checked_ms }))
+}
+
+pub fn routes(cfg: &mut web::ServiceConfig) {
+    cfg.route("/v1/legion/{account}", web::get().to(membership));
 }
 
 #[cfg(test)]
