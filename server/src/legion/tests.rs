@@ -284,3 +284,20 @@ fn a_hidden_accounts_profile_reads_as_never_seen() {
     assert_eq!(alice.counts.followers, 0, "bob's follow doesn't count, and carol is unchecked");
     assert_eq!(alice.counts.posts, 1);
 }
+
+#[test]
+fn a_hidden_accounts_own_lists_and_summary_read_as_never_seen() {
+    let mut state = engaged();
+    state.apply_block(&block(4, vec![("bob.near", json!({ "profile/name": "Bob" }))]));
+    state.enable_legion();
+    check(&mut state, "alice.near", Some(Rank::Initiate), T0);
+    check(&mut state, "bob.near", None, T0);
+    let bob = state.aid("bob.near").unwrap();
+    assert!(state.account_feed(bob, crate::state::query::ProfileTab::Posts, None, 100).is_empty(), "bob's repost of alice");
+    assert!(state.account_likes(bob, None, 100).is_empty());
+    assert!(state.following(bob, None, 100).is_empty());
+    assert!(state.followers(bob, None, 100).is_empty());
+    let ctx = crate::api::dto::Ctx { state: &state, viewer: None, gateway: "", site_hosts: &[], unfurl: None };
+    let summary = ctx.summary(bob);
+    assert_eq!((summary.account_id, summary.name, summary.avatar_url), ("bob.near", None, None));
+}

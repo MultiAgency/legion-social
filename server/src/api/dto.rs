@@ -197,12 +197,14 @@ impl<'a> Ctx<'a> {
         media_url(self.gateway, uri)
     }
 
+    /// A hidden account (named by a visible post, e.g. as the parent of a reply) shows its ID only.
     pub fn summary(&self, aid: Aid) -> AccountSummary<'a> {
         let account = self.state.account(aid);
+        let profile = (!self.state.is_hidden(aid)).then_some(&account.profile);
         AccountSummary {
             account_id: &account.name,
-            name: account.profile.name.as_deref(),
-            avatar_url: account.profile.avatar.as_deref().map(|a| self.url(a)),
+            name: profile.and_then(|p| p.name.as_deref()),
+            avatar_url: profile.and_then(|p| p.avatar.as_deref()).map(|a| self.url(a)),
             rank: self.state.rank(aid),
         }
     }
