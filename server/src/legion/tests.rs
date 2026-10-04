@@ -140,6 +140,17 @@ fn unchecked_accounts_are_due_first_then_stale_ones() {
 }
 
 #[test]
+fn accounts_that_wrote_are_checked_before_accounts_only_followed() {
+    let mut state = State::new();
+    state.enable_legion();
+    // followed.near is seen first, as a follow target, but never writes.
+    state.apply_block(&block(1, vec![("fan.near", json!({ "graph/follow/followed.near": {} }))]));
+    state.apply_block(&block(2, vec![("poster.near", json!({ "post/1": { "text": "hi" } }))]));
+    let due: Vec<String> = state.legion_due(T0, 10).into_iter().map(|(_, name)| name).collect();
+    assert_eq!(due, ["fan.near", "poster.near", "followed.near"]);
+}
+
+#[test]
 fn a_snapshot_restores_checks_for_known_accounts_only() {
     let mut state = three_posts();
     state.enable_legion();

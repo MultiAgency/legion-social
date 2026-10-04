@@ -36,7 +36,7 @@ const TICK: Duration = Duration::from_secs(10);
 const MAX_BACKOFF: Duration = Duration::from_secs(320);
 /// Accounts checked per tick, so a large first pass doesn't flood the RPC.
 const BATCH: usize = 200;
-const CONCURRENCY: usize = 8;
+const CONCURRENCY: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -136,13 +136,18 @@ impl State {
         self.legion.as_ref().is_some_and(|m| !m.ranks.contains_key(&aid))
     }
 
-    /// Accounts due a check: never-checked ones first, then those checked before `stale_ms`.
+    /// Accounts due a check: never-checked accounts that have written first (their posts wait on
+    /// it), then other never-checked ones (accounts only followed or liked), then those checked
+    /// before `stale_ms`.
     fn legion_due(&self, stale_ms: u64, limit: usize) -> Vec<(Aid, String)> {
         let Some(members) = &self.legion else { return vec![] };
-        let unchecked = (0..self.accounts.len() as Aid).filter(|aid| !members.checked.contains_key(aid));
-        let stale = (0..self.accounts.len() as Aid).filter(|aid| members.checked.get(aid).is_some_and(|&ms| ms < stale_ms));
-        unchecked
-            .chain(stale)
+        let all = || 0..self.accounts.len() as Aid;
+        let unchecked = |aid: &Aid| !members.checked.contains_key(aid);
+        let wrote = |aid: &Aid| self.account(*aid).joined_ms.is_some();
+        all()
+            .filter(|aid| unchecked(aid) && wrote(aid))
+            .chain(all().filter(|aid| unchecked(aid) && !wrote(aid)))
+            .chain(all().filter(|aid| members.checked.get(aid).is_some_and(|&ms| ms < stale_ms)))
             .take(limit)
             .map(|aid| (aid, self.account(aid).name.to_string()))
             .collect()
