@@ -301,6 +301,8 @@ pub struct State {
     tx_keys_total: usize,
     /// Accounts hidden by the operator (read-time filter).
     pub hidden: FxHashSet<Aid>,
+    /// NEAR Legion membership (read-time filter); `None` with Legion off.
+    pub legion: Option<crate::legion::Members>,
     /// (block height, block ms) of every block with rows, to date any seq.
     pub block_times: Vec<(u64, u64)>,
     pub last_block_height: u64,
@@ -810,7 +812,7 @@ impl State {
     }
 
     pub fn is_hidden(&self, aid: Aid) -> bool {
-        self.hidden.contains(&aid)
+        self.hidden.contains(&aid) || self.is_outside_legion(aid)
     }
 }
 

@@ -7,6 +7,7 @@ use near_social_server::config::{Config, StartBlock};
 use near_social_server::ingest::log::EventLog;
 use near_social_server::ingest::tailer::{self, Progress};
 use near_social_server::legacy::LegacyClient;
+use near_social_server::legion;
 use near_social_server::model::account_id::is_valid_account_id;
 use near_social_server::state::State;
 use near_social_server::unfurl::Unfurler;
@@ -118,6 +119,11 @@ async fn main() -> Result<()> {
 
     if let Some(path) = config.denylist_path.clone() {
         tokio::spawn(watch_denylist(path, state.clone()));
+    }
+
+    if let Some(settings) = legion::Settings::from_env()? {
+        legion::start(&state, &config.data_dir);
+        tokio::spawn(legion::watch(settings, config.rpc_url.clone(), config.data_dir.clone(), state.clone()));
     }
 
     let base = &config.public_url;
