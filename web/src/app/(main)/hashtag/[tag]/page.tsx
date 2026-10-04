@@ -4,13 +4,14 @@ import { HydrationBoundary } from "@tanstack/react-query";
 import { feedQuery } from "@/lib/api/queries";
 import { getViewer, prefetch } from "@/lib/api/server";
 import { normalizeHashtag } from "@/lib/social/text";
+import { siteName } from "@/lib/brand";
 import { HashtagView } from "@/components/search/hashtag-view";
 
 type Params = Promise<{ tag: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const tag = normalizeHashtag(decodeURIComponent((await params).tag));
-  return tag ? { title: `#${tag}`, description: `Posts tagged #${tag} on near.social` } : {};
+  return tag ? { title: `#${tag}`, description: `Posts tagged #${tag} on ${siteName}` } : {};
 }
 
 export default async function HashtagPage({ params }: { params: Params }) {

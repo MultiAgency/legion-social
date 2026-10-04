@@ -8,6 +8,7 @@ import { Composer } from "@/components/composer/composer";
 import { Feed } from "@/components/feed/feed";
 import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import { homeFeed, qk } from "@/lib/api/queries";
+import { siteName } from "@/lib/brand";
 import { SignInHero } from "./sign-in-hero";
 
 export function HomeFeed() {
@@ -46,7 +47,7 @@ export function HomeFeed() {
         empty={
           tab === "following"
             ? {
-                title: "Welcome to near.social",
+                title: `Welcome to ${siteName}`,
                 body: (
                   <>
                     Your timeline shows posts from you and the people you follow.{" "}

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { siteName } from "@/lib/brand";
 
 export function SearchBox({
   defaultValue = "",
@@ -43,7 +44,7 @@ export function SearchBox({
         value={q}
         autoFocus={autoFocus}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search near.social"
+        placeholder={`Search ${siteName}`}
         aria-label="Search"
         className="h-11 w-full rounded-full border border-transparent bg-muted pl-11 pr-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:bg-background"
       />

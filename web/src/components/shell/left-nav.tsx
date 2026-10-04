@@ -9,6 +9,7 @@ import { BrandMark, Wordmark } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { siteName } from "@/lib/brand";
 import { AccountMenu } from "./account-menu";
 import { navItems } from "./nav-items";
 import { badgeText, useUnreadCount } from "./use-unread";
@@ -25,7 +26,7 @@ export function LeftNav() {
       <Link
         href="/"
         className="mb-1 mt-2 flex items-center gap-2.5 rounded-full p-2.5 transition-colors hover:bg-accent xl:self-start xl:pr-4"
-        aria-label="near.social home"
+        aria-label={`${siteName} home`}
       >
         <BrandMark className="size-8" />
         <Wordmark className="hidden xl:inline" />
