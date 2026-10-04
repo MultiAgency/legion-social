@@ -222,7 +222,7 @@ impl<'a> Ctx<'a> {
             name: account.profile.name.as_deref(),
             avatar_url: account.profile.avatar.as_deref().map(|a| self.url(a)),
             about: account.profile.about.as_deref().map(|a| truncate_chars(a, CARD_ABOUT_CHARS)),
-            followers: account.followers.len(),
+            followers: self.state.follower_count(aid),
             rank: self.state.rank(aid),
             viewer: self.account_viewer(aid),
             cursor,
@@ -233,9 +233,10 @@ impl<'a> Ctx<'a> {
         list.iter().map(|&(seq, aid)| self.card(aid, seq.to_string())).collect()
     }
 
-    /// A profile for any valid account ID (`aid` is `None` for accounts never seen).
+    /// A profile for any valid account ID (`aid` is `None` for accounts never seen). A hidden
+    /// account's profile reads as never seen.
     pub fn profile(&self, account_id: &'a str, aid: Option<Aid>) -> ProfileDto<'a> {
-        let Some(aid) = aid else {
+        let Some(aid) = aid.filter(|&aid| !self.state.is_hidden(aid)) else {
             return ProfileDto {
                 account_id,
                 has_profile: false,
@@ -279,8 +280,8 @@ impl<'a> Ctx<'a> {
                 .map(|(k, v)| (&**k, &**v))
                 .collect(),
             counts: ProfileCounts {
-                followers: account.followers.len(),
-                following: account.following.len(),
+                followers: self.state.follower_count(aid),
+                following: self.state.following_count(aid),
                 posts: account.live_posts,
             },
             joined_at: account.joined_ms,
@@ -334,11 +335,9 @@ impl<'a> Ctx<'a> {
             quote,
             mentions: body.mentions.iter().map(|&a| &*self.state.account(a).name).collect(),
             hashtags: body.hashtags.iter().map(|t| &**t).collect(),
-            counts: PostCounts {
-                replies: post.replies,
-                reposts: post.reposts,
-                likes: post.likes,
-                quotes: post.quotes,
+            counts: {
+                let (likes, reposts, replies, quotes) = self.state.post_counts(pid);
+                PostCounts { replies, reposts, likes, quotes }
             },
             viewer: self.viewer.map(|v| PostViewer {
                 liked: self.state.likes.contains_key(&(v, pid)),

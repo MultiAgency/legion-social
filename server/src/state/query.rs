@@ -202,9 +202,7 @@ impl State {
             .children
             .iter()
             .copied()
-            .filter(|&c| {
-                self.is_visible(c) && self.body(c).is_some_and(|b| b.reply_to == Some(pid)) && seen.insert(c)
-            })
+            .filter(|&c| self.is_reply_of(c, pid) && seen.insert(c))
             .map(|c| (self.post(c).key.author != parent_author, self.created_seq(c), c))
             .collect();
         replies.sort_unstable();
@@ -225,7 +223,7 @@ impl State {
             .quoted_by
             .iter()
             .copied()
-            .filter(|&q| self.is_visible(q) && self.body(q).is_some_and(|b| b.quote == Some(pid)) && seen.insert(q))
+            .filter(|&q| self.is_quote_of(q, pid) && seen.insert(q))
             .map(|q| (self.created_seq(q), q))
             .filter(|&(seq, _)| before.is_none_or(|b| seq < b))
             .collect();
@@ -239,7 +237,7 @@ impl State {
 
     pub fn post_likers(&self, pid: Pid, before: Option<Seq>, limit: usize) -> Vec<(Seq, Aid)> {
         newest_first(&self.post(pid).likers, before)
-            .filter(|&&(seq, aid)| self.likes.get(&(aid, pid)) == Some(&seq) && !self.is_hidden(aid))
+            .filter(|&&edge| self.is_visible_like(pid, edge))
             .take(limit)
             .copied()
             .collect()
@@ -247,10 +245,67 @@ impl State {
 
     pub fn post_reposters(&self, pid: Pid, before: Option<Seq>, limit: usize) -> Vec<(Seq, Aid)> {
         newest_first(&self.post(pid).reposters, before)
-            .filter(|&&(seq, aid)| self.reposts.get(&(aid, pid)) == Some(&seq) && !self.is_hidden(aid))
+            .filter(|&&edge| self.is_visible_repost(pid, edge))
             .take(limit)
             .copied()
             .collect()
+    }
+
+    // ---- Counts as readers see them ----
+    //
+    // The counters on accounts and posts are kept at write time, so they include edges from
+    // hidden accounts (the denylist, Legion's filter). While any account may be hidden, a count is
+    // the length of the list the API serves, using the same filter, so the two always agree.
+
+    fn is_reply_of(&self, c: Pid, pid: Pid) -> bool {
+        self.is_visible(c) && self.body(c).is_some_and(|b| b.reply_to == Some(pid))
+    }
+
+    fn is_quote_of(&self, q: Pid, pid: Pid) -> bool {
+        self.is_visible(q) && self.body(q).is_some_and(|b| b.quote == Some(pid))
+    }
+
+    fn is_visible_like(&self, pid: Pid, (seq, aid): (Seq, Aid)) -> bool {
+        self.likes.get(&(aid, pid)) == Some(&seq) && !self.is_hidden(aid)
+    }
+
+    fn is_visible_repost(&self, pid: Pid, (seq, aid): (Seq, Aid)) -> bool {
+        self.reposts.get(&(aid, pid)) == Some(&seq) && !self.is_hidden(aid)
+    }
+
+    pub fn follower_count(&self, aid: Aid) -> usize {
+        let followers = &self.account(aid).followers;
+        if !self.hides_any() {
+            return followers.len();
+        }
+        followers.keys().filter(|&&f| !self.is_hidden(f)).count()
+    }
+
+    pub fn following_count(&self, aid: Aid) -> usize {
+        let following = &self.account(aid).following;
+        if !self.hides_any() {
+            return following.len();
+        }
+        following.keys().filter(|&&f| !self.is_hidden(f)).count()
+    }
+
+    /// (likes, reposts, replies, quotes) as readers see them.
+    pub fn post_counts(&self, pid: Pid) -> (u32, u32, u32, u32) {
+        let post = self.post(pid);
+        if !self.hides_any() {
+            return (post.likes, post.reposts, post.replies, post.quotes);
+        }
+        let count = |n: usize| n as u32;
+        let distinct = |pids: &[Pid], keep: &dyn Fn(Pid) -> bool| {
+            let mut seen = FxHashSet::default();
+            count(pids.iter().filter(|&&p| keep(p) && seen.insert(p)).count())
+        };
+        (
+            count(post.likers.iter().filter(|&&edge| self.is_visible_like(pid, edge)).count()),
+            count(post.reposters.iter().filter(|&&edge| self.is_visible_repost(pid, edge)).count()),
+            distinct(&post.children, &|c| self.is_reply_of(c, pid)),
+            distinct(&post.quoted_by, &|q| self.is_quote_of(q, pid)),
+        )
     }
 
     pub fn followers(&self, aid: Aid, before: Option<Seq>, limit: usize) -> Vec<(Seq, Aid)> {
@@ -318,7 +373,7 @@ impl State {
                 } else {
                     return None;
                 };
-                Some((score, Reverse(a.followers.len()), aid as Aid))
+                Some((score, Reverse(self.follower_count(aid as Aid)), aid as Aid))
             })
             .collect();
         hits.sort_unstable();
@@ -332,7 +387,7 @@ impl State {
             .iter()
             .enumerate()
             .filter(|(aid, a)| a.profile.exists() && !self.is_hidden(*aid as Aid))
-            .map(|(aid, a)| (Reverse(a.followers.len()), aid as Aid))
+            .map(|(aid, _)| (Reverse(self.follower_count(aid as Aid)), aid as Aid))
             .collect();
         all.sort_unstable();
         all.into_iter().take(limit).map(|(_, aid)| aid).collect()
@@ -520,12 +575,9 @@ impl State {
     pub fn trending_score(&self, pid: Pid, now_ms: u64) -> f64 {
         let post = self.post(pid);
         let created_ms = post.created.map_or(now_ms, |c| c.1);
-        let engagement = post.likes as f64
-            + 2.0 * post.reposts as f64
-            + 2.0 * post.replies as f64
-            + 3.0 * post.quotes as f64
-            + 1.0;
-        let followers = self.account(post.key.author).followers.len() as f64;
+        let (likes, reposts, replies, quotes) = self.post_counts(pid);
+        let engagement = likes as f64 + 2.0 * reposts as f64 + 2.0 * replies as f64 + 3.0 * quotes as f64 + 1.0;
+        let followers = self.follower_count(post.key.author) as f64;
         let age_hours = now_ms.saturating_sub(created_ms) as f64 / 3_600_000.0;
         engagement * (1.0 + 0.1 * (1.0 + followers).ln()) / (age_hours + 2.0).powf(1.5)
     }
