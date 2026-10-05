@@ -63,8 +63,13 @@ Every other key under `legion/` is reserved for later versions of this document.
 ## 3. Legion-only feed
 
 A member can post to Legion only. The post is written exactly as a social-kv/1 post or reply
-(`docs/STANDARD.md` §3.2–3.3), but as a `__fastdata_kv` call to **the Legion feed account
-(configured; TBD)** instead of `social`.
+(`docs/STANDARD.md` §3.2–3.3), but as a `__fastdata_kv` call to the account **`legion`** instead
+of `social`.
+
+`legion` is an unclaimed top-level name that nobody owns, like `social`. Because the account
+doesn't exist, every such receipt fails on chain with `AccountDoesNotExist`. That's expected:
+FastData indexes the call's arguments whatever the receipt's outcome, exactly as it does for
+`social` (whose receipts fail with `CodeDoesNotExist`).
 
 - **Only posts move.** Profiles, follows, likes and reposts stay on `social`. In a feed account,
   only `post/{post_id}` and `reply/…` keys count; every other key sent there is ignored. Media
@@ -74,15 +79,16 @@ A member can post to Legion only. The post is written exactly as a social-kv/1 p
   A later write of the same `post/{post_id}` to a different receiver is ignored; edits and
   deletes go to the post's own feed.
 - **Legion-only posts appear only on Legion Social.** near.social reads only `social`, so it never
-  shows them. Here they're in the Legion tab (`GET /v1/feed/channel/{account_id}`), their author's
-  profile and threads, and not in Latest or For you.
+  shows them. Here they're in the Legion tab and on `/legion` (`GET /v1/feed/channel/legion`), in
+  their author's profile and threads, and not in Latest or For you.
 - **Hashtags are per feed.** `GET /v1/hashtags/{tag}?channel={account_id}` lists a tag within one
   feed; without `channel` it lists `social` only, as before. Trending counts `social` only.
 - **Other feeds work the same way.** The indexer reads valid post and reply writes sent to any
-  account, so any account can be a feed of its own (`/c/{account_id}` on the web).
+  account, so any account can be a feed of its own: the web shows it as that account's Feed tab
+  (`/{account_id}/feed`), and an account with no profile opens on it.
 - **Limits count across feeds.** The per-account daily limits (social-kv/1 §6) cover every feed
   together.
 - **Writing needs one more key.** A function-call access key names one receiver, so posting to
-  the Legion feed needs a key for that account (method `__fastdata_kv`), approved once.
-- **The feed account should have no contract,** like `social`, and should be owned by NEAR Legion,
-  so nothing can run on the posts sent to it.
+  `legion` needs a key with receiver `legion` (method `__fastdata_kv`), approved once.
+- **A feed account should run no code.** An unclaimed name like `legion` can't, as long as nobody
+  registers it. A feed on an existing account should have no contract on it.

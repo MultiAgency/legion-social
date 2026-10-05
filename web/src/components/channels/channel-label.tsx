@@ -14,7 +14,7 @@ export function ChannelLabel({ channel }: { channel: string | null | undefined }
   const legion = channel === legionFeed;
   return (
     <Link
-      href={legion ? "/?feed=legion" : channelHref(channel)}
+      href={channelHref(channel)}
       onClick={(e) => e.stopPropagation()}
       className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-link hover:underline"
     >

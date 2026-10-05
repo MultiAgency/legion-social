@@ -6,7 +6,7 @@ export function hashtagHref(tag: string, channel?: string | null): string {
   return channel ? `${path}?channel=${encodeURIComponent(channel)}` : path;
 }
 
-/** A channel's own feed page. */
+/** A feed's page: the Feed tab of the account that receives it. */
 export function channelHref(channel: string): string {
-  return `/c/${encodeURIComponent(channel)}`;
+  return `/${encodeURIComponent(channel)}/feed`;
 }

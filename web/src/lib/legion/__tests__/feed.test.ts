@@ -26,7 +26,7 @@ describe("channel links", () => {
     expect(hashtagHref("near")).toBe("/hashtag/near");
     expect(hashtagHref("near", null)).toBe("/hashtag/near");
     expect(hashtagHref("near", "feed.near")).toBe("/hashtag/near?channel=feed.near");
-    expect(channelHref("feed.near")).toBe("/c/feed.near");
+    expect(channelHref("feed.near")).toBe("/feed.near/feed");
   });
 
   it("keeps channel keys apart from the social posting key", () => {

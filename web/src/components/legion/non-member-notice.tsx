@@ -4,13 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 import { ShieldAlert } from "lucide-react";
 import { siteName } from "@/lib/brand";
 import { membershipQuery, showsNonMemberNotice } from "@/lib/legion/membership";
+import { legionFeed } from "@/lib/legion/feed";
 
 const MINT_URL = "https://nearlegion.com/mint";
 
 /** Tells a signed-in non-member why their posts don't appear, and how to join. */
 export function NonMemberNotice({ accountId }: { accountId: string }) {
   const { data } = useQuery(membershipQuery(accountId));
-  if (!showsNonMemberNotice(data)) return null;
+  // The Legion feed account is a feed, not a person (docs/LEGION.md §3).
+  if (!showsNonMemberNotice(data) || accountId === legionFeed) return null;
   return (
     <section role="status" className="flex gap-3 border-b bg-muted/40 px-4 py-3 text-[15px] leading-snug">
       <ShieldAlert className="mt-0.5 size-5 shrink-0 text-link" aria-hidden />
