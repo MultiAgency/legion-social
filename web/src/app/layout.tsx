@@ -5,15 +5,19 @@ import "./globals.css";
 import { Providers } from "@/components/providers/providers";
 import { getViewer } from "@/lib/api/server";
 import { siteUrl } from "@/lib/env";
-import { siteDescription, siteName } from "@/lib/brand";
+import { siteDescription, siteName, siteShareImage } from "@/lib/brand";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: { default: siteName, template: `%s · ${siteName}` },
   description: siteDescription,
   applicationName: siteName,
-  openGraph: { siteName, type: "website" },
-  twitter: { card: "summary" },
+  openGraph: {
+    siteName,
+    type: "website",
+    ...(siteShareImage ? { images: [{ url: siteShareImage, width: 1200, height: 630 }] } : {}),
+  },
+  twitter: { card: siteShareImage ? "summary_large_image" : "summary" },
 };
 
 export const viewport: Viewport = {

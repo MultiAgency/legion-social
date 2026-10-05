@@ -18,7 +18,7 @@ use crate::model::account_id::is_valid_account_id;
 use crate::model::keys::{parse_key, Key};
 use crate::state::query::{newest_first, FeedEntry, MAX_SCAN};
 use crate::state::{BlockEffects, KeyStatus, Pid, PostKey, Seq, State};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 
 /// `?channel={account}`: scopes a list to one channel feed; absent or empty is `social`.
@@ -43,7 +43,10 @@ impl FeedQuery {
 /// any route upstream doesn't have.
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.route("/v1/feed/channel/{account}", web::get().to(feed_channel));
+    home::routes(cfg);
 }
+
+pub mod home;
 
 /// `GET /v1/feed/channel/{account}`: a feed's posts, newest first.
 async fn feed_channel(app: web::Data<AppState>, path: web::Path<String>, q: web::Query<ListQuery>) -> HttpResponse {
@@ -187,6 +190,37 @@ impl State {
     /// first, with the feed's own visibility (denylist, Legion membership). False with Legion off.
     pub fn has_feed(&self, account: &str) -> bool {
         self.reads_feeds() && !self.feed_channel(account, None, 1).is_empty()
+    }
+
+    /// Whether a post may be shown at all under its feed account's rule: a post sent to the Legion
+    /// feed account is members only, so a non-member's is shown nowhere (docs/LEGION.md §3).
+    pub fn passes_feed_rule(&self, pid: Pid) -> bool {
+        match (self.channel_of(pid), self.legion_feed()) {
+            (Some(feed), Some(legion)) if feed == legion => self.rank(self.post(pid).key.author).is_some(),
+            _ => true,
+        }
+    }
+
+    /// A post's reply count without the replies the members-only rule hides: upstream's stored
+    /// counter, minus live replies to it that `passes_feed_rule` refuses. With Legion off it's the
+    /// stored counter.
+    pub fn reply_count(&self, pid: Pid) -> u32 {
+        let post = self.post(pid);
+        if self.legion.is_none() {
+            return post.replies;
+        }
+        let mut seen = FxHashSet::default();
+        let hidden = post
+            .children
+            .iter()
+            .filter(|&&c| seen.insert(c))
+            .filter(|&&c| {
+                self.post(c).is_live()
+                    && self.body(c).is_some_and(|b| b.reply_to == Some(pid))
+                    && !self.passes_feed_rule(c)
+            })
+            .count() as u32;
+        post.replies.saturating_sub(hidden)
     }
 
     /// The channel a post was created in; `None` for a post on `social`.

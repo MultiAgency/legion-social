@@ -12,3 +12,9 @@ export const siteTagline = process.env.NEXT_PUBLIC_SITE_TAGLINE || "The open soc
 export const siteDescription = `${
   process.env.NEXT_PUBLIC_SITE_TAGLINE ? siteTagline : `${siteName}: an open social network on NEAR.`
 } Every post, like and follow is public data on FastData KV.`;
+
+/** The site mark, from `NEXT_PUBLIC_SITE_MARK`: "legion" for the Legion knot. Unset, it's upstream's. */
+export const siteMark = process.env.NEXT_PUBLIC_SITE_MARK || "near.social";
+
+/** The site's share image (1200 × 630), set only with the Legion mark. Unset, upstream's metadata. */
+export const siteShareImage: string | null = siteMark === "legion" ? "/legion-og.png" : null;

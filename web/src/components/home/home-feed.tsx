@@ -6,10 +6,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "@/components/providers/account-provider";
 import { Composer } from "@/components/composer/composer";
 import { Feed } from "@/components/feed/feed";
-import { NonMemberNotice } from "@/components/legion/non-member-notice";
+import { HomeFeeds } from "@/components/legion/home-feeds";
+import { legionFeed } from "@/lib/legion/feed";
 import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import { homeFeed, qk } from "@/lib/api/queries";
-import { legionFeed } from "@/lib/legion/feed";
 import { siteName } from "@/lib/brand";
 import { SignInHero } from "./sign-in-hero";
 
@@ -25,6 +25,9 @@ export function HomeFeed() {
     void qc.resetQueries({ queryKey: qk.feed(spec, accountId), exact: true });
   };
 
+  // With a Legion feed configured, home has feeds to switch between (docs/LEGION.md §4).
+  if (legionFeed) return <HomeFeeds tab={tab} spec={spec} onActiveClick={refresh} />;
+
   return (
     <>
       <PageHeader title="Home" brandOnMobile>
@@ -37,16 +40,10 @@ export function HomeFeed() {
               ? [{ href: "/?feed=following", label: "Following", active: tab === "following" }]
               : []),
             { href: "/?feed=latest", label: "Latest", active: tab === "latest" },
-            ...(legionFeed ? [{ href: "/?feed=legion", label: "Legion", active: tab === "legion" }] : []),
           ]}
         />
       </PageHeader>
-      {accountId && <NonMemberNotice accountId={accountId} />}
-      {accountId ? (
-        <Composer key={tab} variant="inline" channel={tab === "legion" ? legionFeed : null} />
-      ) : (
-        <SignInHero />
-      )}
+      {accountId ? <Composer variant="inline" /> : <SignInHero />}
       <Feed
         key={`${tab}:${accountId ?? ""}`}
         spec={spec}

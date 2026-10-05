@@ -816,7 +816,7 @@ impl State {
     }
 
     pub fn is_hidden(&self, aid: Aid) -> bool {
-        self.hidden.contains(&aid) || self.is_outside_legion(aid)
+        self.hidden.contains(&aid)
     }
 }
 

@@ -94,26 +94,28 @@ fn legion_off_shows_everyone_like_upstream() {
 }
 
 #[test]
-fn legion_on_shows_only_checked_members() {
+fn legion_on_shows_everyone_and_ranks_only_members() {
     let mut state = three_posts();
     state.enable_legion();
-    assert!(authors(&state).is_empty(), "nobody is a member until checked");
+    assert_eq!(authors(&state), ["alice.near", "bob.near", "carol.near"], "membership hides nobody");
     check(&mut state, "alice.near", Some(Rank::Vanguard), T0);
     check(&mut state, "bob.near", None, T0);
-    assert_eq!(authors(&state), ["alice.near"]);
+    assert_eq!(authors(&state), ["alice.near", "bob.near", "carol.near"]);
     assert_eq!(state.rank(state.aid("alice.near").unwrap()), Some(Rank::Vanguard));
     assert_eq!(state.rank(state.aid("bob.near").unwrap()), None);
+    assert_eq!(state.rank(state.aid("carol.near").unwrap()), None, "unchecked");
 }
 
 #[test]
-fn a_recheck_admits_a_new_member_and_drops_a_revoked_one() {
+fn a_recheck_ranks_a_new_member_and_unranks_a_revoked_one() {
     let mut state = three_posts();
     state.enable_legion();
     check(&mut state, "alice.near", Some(Rank::Initiate), T0);
     check(&mut state, "bob.near", None, T0);
     check(&mut state, "alice.near", None, T0 + 1);
     check(&mut state, "bob.near", Some(Rank::Ascendant), T0 + 1);
-    assert_eq!(authors(&state), ["bob.near"]);
+    assert_eq!(state.rank(state.aid("alice.near").unwrap()), None);
+    assert_eq!(state.rank(state.aid("bob.near").unwrap()), Some(Rank::Ascendant));
 }
 
 #[test]
@@ -122,7 +124,7 @@ fn the_denylist_still_hides_a_member() {
     state.enable_legion();
     check(&mut state, "alice.near", Some(Rank::Initiate), T0);
     state.set_hidden(&["alice.near".into()]);
-    assert!(authors(&state).is_empty());
+    assert_eq!(authors(&state), ["bob.near", "carol.near"]);
 }
 
 #[test]
@@ -204,7 +206,6 @@ fn a_snapshot_restores_checks_for_known_accounts_only() {
     let restored = restored.into_inner();
     std::fs::remove_dir_all(&dir).unwrap();
 
-    assert_eq!(authors(&restored), ["alice.near"]);
     assert_eq!(restored.rank(restored.aid("alice.near").unwrap()), Some(Rank::Ascendant));
     assert_eq!(restored.aid("stranger.near"), None, "restoring doesn't invent accounts");
     let due: Vec<String> = restored.legion_due(T0, 10).into_iter().map(|(_, name)| name).collect();
@@ -213,97 +214,27 @@ fn a_snapshot_restores_checks_for_known_accounts_only() {
 
 /// alice.near posts; member carol.near and non-member bob.near each follow alice, like, repost,
 /// reply to and quote her post.
-fn engaged() -> State {
+#[test]
+fn a_non_members_profile_lists_and_counts_are_upstreams() {
     let mut state = State::new();
     state.apply_block(&block(1, vec![("alice.near", json!({ "post/1": { "text": "hi" } }))]));
-    for (height, fan) in [(2, "bob.near"), (3, "carol.near")] {
-        state.apply_block(&block(
-            height,
-            vec![(
-                fan,
-                json!({
-                    "graph/follow/alice.near": {},
-                    "like/alice.near/1": {},
-                    "repost/alice.near/1": {},
-                    "post/2": { "text": "reply", "reply_to": "alice.near/1" },
-                    "post/3": { "text": "quote", "quote": "alice.near/1" },
-                }),
-            )],
-        ));
-    }
-    state
-}
-
-/// Every count the API shows equals the length of the list it describes.
-fn assert_counts_match_lists(state: &State, account: &str) {
-    let aid = state.aid(account).unwrap();
-    let pid = state.pid_by_key[&crate::state::PostKey { author: aid, id: 1 }];
-    let (likes, reposts, replies, quotes) = state.post_counts(pid);
-    assert_eq!(likes as usize, state.post_likers(pid, None, 100).len(), "likes");
-    assert_eq!(reposts as usize, state.post_reposters(pid, None, 100).len(), "reposts");
-    assert_eq!(replies as usize, state.post_replies(pid, 0, 100).0.len(), "replies");
-    assert_eq!(quotes as usize, state.post_quotes(pid, None, 100).len(), "quotes");
-    assert_eq!(state.follower_count(aid), state.followers(aid, None, 100).len(), "followers");
-}
-
-#[test]
-fn counts_leave_out_non_members_and_match_their_lists() {
-    let mut state = engaged();
-    assert_eq!(state.post_counts(0), (2, 2, 2, 2), "Legion off: everyone counts");
-    state.enable_legion();
-    check(&mut state, "alice.near", Some(Rank::Initiate), T0);
-    check(&mut state, "carol.near", Some(Rank::Initiate), T0);
-    check(&mut state, "bob.near", None, T0);
-    let alice = state.aid("alice.near").unwrap();
-    assert_eq!(state.follower_count(alice), 1);
-    assert_eq!(state.post_counts(0), (1, 1, 1, 1), "bob's like, repost, reply and quote don't count");
-    assert_counts_match_lists(&state, "alice.near");
-    let carol = state.aid("carol.near").unwrap();
-    assert_eq!(state.following_count(carol), 1);
-}
-
-#[test]
-fn with_legion_off_the_denylist_keeps_upstreams_counts() {
-    let mut state = engaged();
-    state.set_hidden(&["bob.near".into()]);
-    assert_eq!(state.post_counts(0), (2, 2, 2, 2), "upstream counts denylisted edges; so do we");
-    assert_eq!(state.follower_count(state.aid("alice.near").unwrap()), 2);
-}
-
-#[test]
-fn a_hidden_accounts_profile_reads_as_never_seen() {
-    let mut state = engaged();
+    state.apply_block(&block(
+        2,
+        vec![("bob.near", json!({ "profile/name": "Bob", "graph/follow/alice.near": {}, "like/alice.near/1": {} }))],
+    ));
     state.enable_legion();
     check(&mut state, "alice.near", Some(Rank::Initiate), T0);
     check(&mut state, "bob.near", None, T0);
     let ctx = crate::api::dto::Ctx { state: &state, viewer: None, gateway: "", site_hosts: &[], unfurl: None };
-    let bob = ctx.profile("bob.near", state.aid("bob.near"));
-    assert!(!bob.has_profile);
-    let own = crate::api::dto::Ctx { state: &state, viewer: state.aid("bob.near"), gateway: "", site_hosts: &[], unfurl: None };
-    let bob_sees = own.profile("bob.near", state.aid("bob.near"));
-    assert_eq!(bob_sees.account_id, "bob.near");
-    assert!(bob_sees.joined_at.is_some(), "bob's own profile isn't blanked, so onboarding won't overwrite it");
-    assert_eq!((bob.counts.followers, bob.counts.following, bob.counts.posts), (0, 0, 0));
-    let alice = ctx.profile("alice.near", state.aid("alice.near"));
-    assert_eq!(alice.counts.followers, 0, "bob's follow doesn't count, and carol is unchecked");
-    assert_eq!(alice.counts.posts, 1);
-}
-
-#[test]
-fn a_hidden_accounts_own_lists_and_summary_read_as_never_seen() {
-    let mut state = engaged();
-    state.apply_block(&block(4, vec![("bob.near", json!({ "profile/name": "Bob" }))]));
-    state.enable_legion();
-    check(&mut state, "alice.near", Some(Rank::Initiate), T0);
-    check(&mut state, "bob.near", None, T0);
     let bob = state.aid("bob.near").unwrap();
-    assert!(state.account_feed(bob, crate::state::query::ProfileTab::Posts, None, 100).is_empty(), "bob's repost of alice");
-    assert!(state.account_likes(bob, None, 100).is_empty());
-    assert!(state.following(bob, None, 100).is_empty());
-    assert!(state.followers(bob, None, 100).is_empty());
-    let ctx = crate::api::dto::Ctx { state: &state, viewer: None, gateway: "", site_hosts: &[], unfurl: None };
-    let summary = ctx.summary(bob);
-    assert_eq!((summary.account_id, summary.name, summary.avatar_url), ("bob.near", None, None));
+    let profile = ctx.profile("bob.near", Some(bob));
+    assert!(profile.has_profile);
+    assert_eq!((profile.name, profile.rank, profile.counts.following), (Some("Bob"), None, 1));
+    assert_eq!(ctx.summary(bob).name, Some("Bob"));
+    assert_eq!(state.account_likes(bob, None, 100).len(), 1);
+    let alice = ctx.profile("alice.near", state.aid("alice.near"));
+    assert_eq!((alice.counts.followers, alice.rank), (1, Some(Rank::Initiate)), "bob's follow counts");
+    assert_eq!(state.post(0).likes, 1);
 }
 
 #[test]

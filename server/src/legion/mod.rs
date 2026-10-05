@@ -26,7 +26,8 @@
 
 use crate::api::AppState;
 use crate::config::Config;
-use crate::state::{Aid, Pid, State};
+use crate::model::account_id::is_valid_account_id;
+use crate::state::{Aid, State};
 use actix_web::http::header::CACHE_CONTROL;
 use actix_web::{web, HttpResponse};
 use anyhow::{bail, Context, Result};
@@ -72,6 +73,9 @@ pub struct Settings {
     /// Each rank's SBT contract.
     pub contracts: Vec<(Rank, String)>,
     pub refresh: Duration,
+    /// The Legion feed account, `LEGION_FEED` (default `legion`). The web's
+    /// `NEXT_PUBLIC_LEGION_FEED` must name the same account.
+    pub feed: String,
 }
 
 impl Settings {
@@ -85,7 +89,17 @@ impl Settings {
             Some(v) => Duration::from_secs(v.parse().context("LEGION_REFRESH_SECS")?),
             None => Duration::from_secs(3600),
         };
-        Ok(Some(Self { contracts: parse_contracts(&contracts)?, refresh }))
+        let feed = parse_feed(std::env::var("LEGION_FEED").ok().as_deref())?;
+        Ok(Some(Self { contracts: parse_contracts(&contracts)?, refresh, feed }))
+    }
+}
+
+/// `LEGION_FEED`: a valid account ID, `legion` when unset or empty.
+pub(crate) fn parse_feed(value: Option<&str>) -> Result<String> {
+    match value.map(str::trim).filter(|v| !v.is_empty()) {
+        None => Ok(DEFAULT_FEED.into()),
+        Some(feed) if is_valid_account_id(feed) => Ok(feed.into()),
+        Some(feed) => bail!("LEGION_FEED is not a valid account ID: {feed}"),
     }
 }
 
@@ -113,13 +127,23 @@ fn parse_contracts(value: &str) -> Result<Vec<(Rank, String)>> {
     Ok(contracts)
 }
 
+/// The Legion feed account's default (docs/LEGION.md §3).
+pub const DEFAULT_FEED: &str = "legion";
+
 /// What the indexer knows about each account's membership.
-#[derive(Default)]
 pub struct Members {
     /// Members only, by rank.
     ranks: FxHashMap<Aid, Rank>,
     /// When each account was last checked (ms). An account not here hasn't been checked yet.
     checked: FxHashMap<Aid, u64>,
+    /// The Legion feed account (`LEGION_FEED`): posts sent to it are members only.
+    feed: Box<str>,
+}
+
+impl Default for Members {
+    fn default() -> Self {
+        Self { ranks: Default::default(), checked: Default::default(), feed: DEFAULT_FEED.into() }
+    }
 }
 
 /// One account's last check, as the snapshot keeps it (by name: account IDs survive a rebuild
@@ -136,14 +160,20 @@ impl State {
         self.legion.get_or_insert_with(Members::default);
     }
 
+    /// The Legion feed account; `None` with Legion off.
+    pub fn legion_feed(&self) -> Option<&str> {
+        self.legion.as_ref().map(|m| &*m.feed)
+    }
+
+    pub fn set_legion_feed(&mut self, feed: &str) {
+        if let Some(m) = &mut self.legion {
+            m.feed = feed.into();
+        }
+    }
+
     /// The account's Legion rank; `None` for non-members, unchecked accounts, or with Legion off.
     pub fn rank(&self, aid: Aid) -> Option<Rank> {
         self.legion.as_ref()?.ranks.get(&aid).copied()
-    }
-
-    /// Whether Legion is on and the account isn't a known member.
-    pub fn is_outside_legion(&self, aid: Aid) -> bool {
-        self.legion.as_ref().is_some_and(|m| !m.ranks.contains_key(&aid))
     }
 
     /// Accounts due a check: never-checked accounts that have written first (their posts wait on
@@ -161,42 +191,6 @@ impl State {
             .take(limit)
             .map(|aid| (aid, self.account(aid).name.to_string()))
             .collect()
-    }
-
-    // ---- What readers see ----
-    //
-    // Upstream keeps counters at write time, so they would include non-members' follows, likes,
-    // reposts, replies and quotes. With Legion on, a count is the length of the list the API
-    // serves, using upstream's own list queries, so the two always agree. With Legion off, these
-    // are upstream's stored counters.
-
-    pub fn follower_count(&self, aid: Aid) -> usize {
-        match self.legion {
-            None => self.account(aid).followers.len(),
-            Some(_) => self.followers(aid, None, usize::MAX).len(),
-        }
-    }
-
-    pub fn following_count(&self, aid: Aid) -> usize {
-        match self.legion {
-            None => self.account(aid).following.len(),
-            Some(_) => self.following(aid, None, usize::MAX).len(),
-        }
-    }
-
-    /// (likes, reposts, replies, quotes).
-    pub fn post_counts(&self, pid: Pid) -> (u32, u32, u32, u32) {
-        let post = self.post(pid);
-        if self.legion.is_none() {
-            return (post.likes, post.reposts, post.replies, post.quotes);
-        }
-        let n = |len: usize| len as u32;
-        (
-            n(self.post_likers(pid, None, usize::MAX).len()),
-            n(self.post_reposters(pid, None, usize::MAX).len()),
-            n(self.post_replies(pid, 0, usize::MAX).0.len()),
-            n(self.post_quotes(pid, None, usize::MAX).len()),
-        )
     }
 
     /// The account's last check, if it has had one.
@@ -276,8 +270,9 @@ static CHECKER: OnceLock<Checker> = OnceLock::new();
 /// replays, so a replay applies feed rows exactly when Legion is on (docs/LEGION.md §3).
 pub fn new_state() -> Result<State> {
     let mut state = State::new();
-    if Settings::from_env()?.is_some() {
+    if let Some(settings) = Settings::from_env()? {
         state.enable_legion();
+        state.set_legion_feed(&settings.feed);
     }
     Ok(state)
 }
@@ -289,6 +284,7 @@ pub fn spawn(state: &Arc<RwLock<State>>, config: &Config) -> Result<()> {
     start(state, &config.data_dir);
     let checker = init_checker(settings, config);
     tokio::spawn(watch(checker, config.data_dir.clone(), state.clone()));
+    builders::spawn();
     Ok(())
 }
 
@@ -559,6 +555,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
     }
 }
 
+pub mod builders;
 pub mod feeds;
 
 #[cfg(test)]

@@ -83,7 +83,7 @@ type App = web::Data<AppState>;
 pub(crate) struct ApiError(StatusCode, &'static str, String);
 
 impl ApiError {
-    fn bad_request(message: impl Into<String>) -> Self {
+    pub(crate) fn bad_request(message: impl Into<String>) -> Self {
         Self(StatusCode::BAD_REQUEST, "bad_request", message.into())
     }
     fn not_found(message: impl Into<String>) -> Self {

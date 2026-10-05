@@ -1,8 +1,10 @@
-import { siteName } from "@/lib/brand";
+import { siteMark, siteName } from "@/lib/brand";
+import { LegionMark } from "@/components/legion/legion-mark";
 import { cn } from "@/lib/utils";
 
-/** The near.social mark: an arch ("n") with a dot, on a mint tile. */
+/** The site mark: the Legion knot when `siteMark` is "legion", else the near.social arch ("n") with a dot, on a mint tile. */
 export function BrandMark({ className }: { className?: string }) {
+  if (siteMark === "legion") return <LegionMark className={className} />;
   return (
     <svg viewBox="0 0 32 32" aria-hidden className={cn("size-8", className)}>
       <rect width="32" height="32" rx="9" className="fill-primary" />
