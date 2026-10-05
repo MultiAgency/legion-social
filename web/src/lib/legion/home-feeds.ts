@@ -1,6 +1,6 @@
 /**
- * The home feeds (docs/LEGION.md §4): Everyone, plus Legion, .agency and Builders, each with who
- * posts there, where it shows, and who may post from this site. Only with a Legion feed configured.
+ * The home feeds (docs/LEGION.md §4): Everyone is upstream's own tabs; Legion, .agency and Builders
+ * are pinned after them, each with one line on who posts there. Only with a Legion feed configured.
  */
 import type { FeedSpec } from "@/lib/api/queries";
 import { legionFeed } from "./feed";
@@ -13,52 +13,33 @@ export const LEGION_TAG = "legion";
 export const NAME_SUFFIX = "agency";
 
 export interface HomeFeedInfo {
-  id: HomeFeedId;
+  id: PickedFeedId;
   label: string;
-  purpose: string;
-  who: string;
-  shows: string;
-  demo: string;
-  /** How to become able to post here, for someone who can't. */
-  howTo?: { text: string; href?: string; link?: string };
+  /** One line under the tabs: who posts here, and where it shows. */
+  note: string;
+  /** How to become able to post here, for a signed-in account that can't. */
+  howTo: { text: string; href?: string; link?: string };
 }
 
+/** The feeds pinned after upstream's own tabs (For you, Following, Latest), which are Everyone. */
 export const HOME_FEEDS: HomeFeedInfo[] = [
-  {
-    id: "everyone",
-    label: "Everyone",
-    purpose: "The whole near.social network.",
-    who: "Anyone with a NEAR account.",
-    shows: "Here and on near.social.",
-    demo: "An open feed: no rule at all.",
-    howTo: { text: "Sign in with a NEAR account." },
-  },
   {
     id: "legion",
     label: "Legion",
-    purpose: "The Legion's feed.",
-    who: "Legion token holders.",
-    shows: "Members only by default. Choose Public and it also goes to near.social, tagged #legion.",
-    demo: "A token-gated feed, with a public option.",
-    howTo: { text: "Mint an Initiate token at", href: "https://nearlegion.com/mint", link: "nearlegion.com/mint" },
+    note: "Legion token holders. Members-only posts stay off near.social.",
+    howTo: { text: "To post, mint an Initiate token at", href: "https://nearlegion.com/mint", link: "nearlegion.com/mint" },
   },
   {
     id: "agency",
     label: ".agency",
-    purpose: "Humans and agents who hold a .agency name.",
-    who: "Accounts named something.agency.",
-    shows: "Here and on near.social, as posts by those names.",
-    demo: "A name-gated feed: only the name registry can create .agency names.",
-    howTo: { text: "Rent a .agency name from the House of Stake registry. Posting as one is done from that name's own account." },
+    note: "Posts by .agency names, people and agents.",
+    howTo: { text: "Only .agency names can post here." },
   },
   {
     id: "builders",
     label: "Builders",
-    purpose: "People building on NEAR.",
-    who: "NearBuilders members.",
-    shows: "Here and on near.social.",
-    demo: "Membership kept by another app: nearbuilders.org.",
-    howTo: { text: "Create a builder profile on", href: "https://nearbuilders.org", link: "nearbuilders.org" },
+    note: "Posts by NearBuilders members.",
+    howTo: { text: "To post, create a builder profile at", href: "https://nearbuilders.org", link: "nearbuilders.org" },
   },
 ];
 

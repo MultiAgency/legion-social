@@ -8,13 +8,12 @@ import { SignInHero } from "@/components/home/sign-in-hero";
 import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import type { FeedSpec, HomeTab } from "@/lib/api/queries";
 import { destinationFor, HOME_FEEDS, homeFeedId, type HomeFeedId } from "@/lib/legion/home-feeds";
-import { FeedAbout, useCanPost } from "./feed-about";
-import { FeedOrder } from "./feed-order";
+import { FeedNote, useCanPost } from "./feed-note";
 
 /**
- * Home with feeds to switch between (docs/LEGION.md §4): Everyone keeps upstream's For you /
- * Following / Latest, as a smaller control under the switcher; Legion, .agency and Builders are newest first. Each feed says who posts
- * there, and the post box shows only to those who can.
+ * Home with feeds (docs/LEGION.md §4): upstream's own tabs, For you / Following / Latest, are
+ * Everyone, unchanged; Legion, .agency and Builders are pinned after them, each with one line on
+ * who posts there. The post box shows only to those who can post in the current feed.
  */
 export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: FeedSpec; onActiveClick: () => void }) {
   const { accountId } = useAccount();
@@ -25,27 +24,18 @@ export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: Fe
   return (
     <>
       <PageHeader title="Home" brandOnMobile>
-        {/* The feeds are home's main navigation, so they use upstream's own header tabs. */}
         <HeaderTabs
           replace
           onActiveClick={onActiveClick}
-          // Clicking the feed you're on refreshes it, as upstream's tabs do; Everyone's link keeps the
-          // current order, which the pills below change.
-          tabs={HOME_FEEDS.map((f) => ({ href: f.id === "everyone" ? everyoneHref(tab) : `/?feed=${f.id}`, label: f.label, active: f.id === id }))}
+          tabs={[
+            { href: "/", label: "For you", active: tab === "for_you" },
+            ...(accountId ? [{ href: "/?feed=following", label: "Following", active: tab === "following" }] : []),
+            { href: "/?feed=latest", label: "Latest", active: tab === "latest" },
+            ...HOME_FEEDS.map((f) => ({ href: `/?feed=${f.id}`, label: f.label, active: f.id === id })),
+          ]}
         />
-        {id === "everyone" && (
-          <FeedOrder
-            onActiveClick={onActiveClick}
-            options={[
-              { href: "/", label: "For you", active: tab === "for_you" },
-              ...(accountId ? [{ href: "/?feed=following", label: "Following", active: tab === "following" }] : []),
-              { href: "/?feed=latest", label: "Latest", active: tab === "latest" },
-            ]}
-          />
-        )}
       </PageHeader>
-      {/* Signed out on Everyone, the sign-in hero below already says how to post. */}
-      <FeedAbout id={id} canPost={!accountId && id === "everyone" ? undefined : canPost} />
+      {id !== "everyone" && <FeedNote id={id} signedIn={!!accountId} canPost={canPost} />}
       {!accountId ? (
         id === "everyone" && <SignInHero />
       ) : (
@@ -70,16 +60,11 @@ export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: Fe
   );
 }
 
-/** Everyone's link: the current order when it's one of Everyone's, else For you. */
-function everyoneHref(tab: HomeTab): string {
-  return tab === "following" || tab === "latest" ? `/?feed=${tab}` : "/";
-}
-
 function emptyState(id: HomeFeedId, tab: HomeTab, canPost: boolean | undefined) {
   if (id === "legion") {
     return {
-      title: "No members-only posts yet",
-      body: canPost ? "Write the first post. It stays off near.social." : "Members' posts will show here.",
+      title: "No Legion posts yet",
+      body: canPost ? "Write the first one, for members only or in public." : "Members' posts will show here.",
     };
   }
   if (tab === "following") {
