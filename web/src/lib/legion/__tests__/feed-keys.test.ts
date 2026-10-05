@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { removeFeedKeys } from "../feed-send";
+import { removeFeedKeys } from "../feed-keys";
 
 function memoryStorage(entries: Record<string, string>): Storage {
   const m = new Map(Object.entries(entries));

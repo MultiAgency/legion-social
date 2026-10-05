@@ -2,14 +2,17 @@
 //! such as `legion`) instead of `social`.
 //!
 //! With Legion on, the tailer keeps the post rows of `__fastdata_kv` actions whose receipt failed
-//! with `AccountDoesNotExist` for their receiver, and tags them with that feed (`LogAction::c`).
-//! Writes to existing accounts are other apps' and are never read. The first write of an author's
-//! `post/{id}` fixes its feed; global, For You and trending stay `social`-only;
-//! `GET /v1/feed/channel/{account}` lists a feed. With Legion off, the tailer reads `social` only
-//! and replay skips feed rows already in the log (Legion is on before replay: `legion::new_state`),
-//! so everything behaves exactly as upstream.
+//! with `AccountDoesNotExist` for their receiver, and logs them under that feed (`LogAction::c`,
+//! never in `r`). Writes to existing accounts are other apps' and are never read. The first write
+//! of an author's `post/{id}` fixes its feed; global, For You, trending and unscoped hashtags stay
+//! `social`-only; `GET /v1/feed/channel/{account}` lists a feed. With Legion off, the tailer reads
+//! `social` only, replay skips feed actions already in the log (Legion is on before replay:
+//! `legion::new_state`), and the feed routes aren't registered, so everything behaves as upstream.
 
+use crate::api::{AppState, ListQuery};
 use crate::ingest::fastdata::{ActionStatus, LogAction};
+use actix_web::http::StatusCode;
+use actix_web::{web, HttpResponse};
 use fastnear_primitives::near_primitives::errors::{ActionErrorKind, TxExecutionError};
 use fastnear_primitives::near_primitives::views::ExecutionStatusView;
 use crate::model::account_id::is_valid_account_id;
@@ -28,13 +31,29 @@ pub struct FeedQuery {
 }
 
 impl FeedQuery {
-    pub fn channel(&self) -> Result<Option<&str>, String> {
-        match self.channel.as_deref().filter(|c| !c.is_empty()) {
-            None => Ok(None),
-            Some(c) if is_valid_account_id(c) => Ok(Some(c)),
+    /// `GET /v1/hashtags/{tag}`: the tag within the feed `?channel=` names, or upstream's list (on
+    /// `social`) without it. With Legion off the parameter is ignored, as upstream does.
+    pub fn hashtag(&self, state: &State, tag: &str, before: Option<Seq>, limit: usize) -> Result<Vec<FeedEntry>, String> {
+        match self.channel.as_deref().filter(|c| !c.is_empty() && state.reads_feeds()) {
+            None => Ok(state.hashtag_feed(tag, before, limit)),
+            Some(c) if is_valid_account_id(c) => Ok(state.feed_hashtag(c, tag, before, limit)),
             Some(c) => Err(format!("invalid channel: {c}")),
         }
     }
+}
+
+/// The feed routes, registered only with Legion on (`legion::routes`): without it, they 404 like
+/// any route upstream doesn't have.
+pub fn routes(cfg: &mut web::ServiceConfig) {
+    cfg.route("/v1/feed/channel/{account}", web::get().to(feed_channel));
+}
+
+/// `GET /v1/feed/channel/{account}`: a feed's posts, newest first.
+async fn feed_channel(app: web::Data<AppState>, path: web::Path<String>, q: web::Query<ListQuery>) -> HttpResponse {
+    if !is_valid_account_id(&path) {
+        return super::error(StatusCode::BAD_REQUEST, "invalid_account_id", format!("invalid account id: {path}"));
+    }
+    crate::api::feed_list(&app, &q, |state, before, limit| state.feed_channel(&path, before, limit))
 }
 
 #[derive(Default)]
@@ -43,6 +62,25 @@ pub struct Channels {
     by_post: FxHashMap<Pid, Box<str>>,
     /// Each channel's posts, in creation order.
     feeds: FxHashMap<Box<str>, Vec<(Seq, Pid)>>,
+}
+
+/// A feed action's rows in the event log (`LogAction::c`). They're kept out of `r`, so a build that
+/// doesn't know feeds (upstream, or this one before feeds) reads a feed action as empty instead of
+/// replaying Legion-only posts as `social` ones.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FeedRows {
+    /// The feed: the receiver account.
+    pub f: String,
+    /// Accepted rows: (key, serialized JSON value), in key order.
+    pub r: Vec<(String, String)>,
+}
+
+/// An action's feed (`None`: `social`) and the rows to apply.
+pub fn rows(action: &LogAction) -> (Option<&str>, &[(String, String)]) {
+    match &action.c {
+        Some(c) => (Some(&c.f), &c.r),
+        None => (None, &action.r),
+    }
 }
 
 /// Where a receipt's `__fastdata_kv` writes go.
@@ -91,7 +129,8 @@ pub fn channel_action(mut action: LogAction, receiver: &str) -> Option<LogAction
     if action.r.is_empty() && action.d.is_empty() {
         return None;
     }
-    action.c = Some(receiver.to_string());
+    let r = std::mem::take(&mut action.r);
+    action.c = Some(FeedRows { f: receiver.to_string(), r });
     Some(action)
 }
 
@@ -103,9 +142,6 @@ impl State {
         self.post(pid).created.is_some().then_some(pid)
     }
 
-    /// Applies one row of an action sent to `channel` (`None`: `social`). Only posts count in a
-    /// channel, and a post's first write fixes its channel: writes to it from anywhere else are
-    /// ignored.
     /// Whether `apply_block` reads feed actions (`LogAction::c`) at all. Feeds are part of Legion:
     /// with it off, a feed action in the log is skipped whole, taking no row slots and no `/v1/tx`
     /// report, as upstream never reads it.
@@ -113,6 +149,9 @@ impl State {
         self.legion.is_some()
     }
 
+    /// Applies one row of an action sent to `channel` (`None`: `social`). Only posts count in a
+    /// channel, and a post's first write fixes its channel: writes to it from anywhere else are
+    /// ignored.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn apply_channel_row(
         &mut self,

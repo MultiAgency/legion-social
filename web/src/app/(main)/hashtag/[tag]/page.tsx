@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { feedQuery } from "@/lib/api/queries";
 import { getViewer, prefetch } from "@/lib/api/server";
-import { isAccountId } from "@/lib/social/standard";
+import { hashtagChannel } from "@/lib/legion/feed";
 import { normalizeHashtag } from "@/lib/social/text";
 import { siteName } from "@/lib/brand";
 import { HashtagView } from "@/components/search/hashtag-view";
@@ -22,8 +22,7 @@ export default async function HashtagPage({ params, searchParams }: { params: Pa
   if (!tag) notFound();
   if (tag !== raw) redirect(`/hashtag/${encodeURIComponent(tag)}`);
   // `?channel=`: the tag within one feed (docs/LEGION.md §3).
-  const param = (await searchParams).channel;
-  const channel = typeof param === "string" && isAccountId(param) ? param : null;
+  const channel = hashtagChannel((await searchParams).channel);
   const viewer = await getViewer();
   const state = await prefetch((qc) => qc.prefetchInfiniteQuery(feedQuery({ kind: "hashtag", tag, channel }, viewer)));
   return (

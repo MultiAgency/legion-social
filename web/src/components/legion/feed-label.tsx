@@ -9,7 +9,7 @@ export function feedName(channel: string): string {
 
 /** The small line on a feed post: "Legion only" for the Legion feed, else "in @account". */
 export function FeedLabel({ channel }: { channel: string | null | undefined }) {
-  if (!channel) return null;
+  if (!channel || !legionFeed) return null;
   const legion = channel === legionFeed;
   return (
     <Link

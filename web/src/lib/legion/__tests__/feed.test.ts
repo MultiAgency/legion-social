@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isAccountId } from "@/lib/social/standard";
-import { configured, feedHref, hashtagHref, legionTab, writeFeed } from "../feed";
-import { feedKeyId } from "../feed-send";
+import { configured, feedHref, hashtagChannel, hashtagHref, legionTab, ownFeed, writeFeed } from "../feed";
+import { feedKeyId } from "../feed-keys";
 
 describe("Legion feed", () => {
   it("is configured only by a valid account", () => {
@@ -31,11 +31,26 @@ describe("writeFeed", () => {
   });
 });
 
+describe("ownFeed", () => {
+  it("edits and deletes social and the configured feed, and refuses any other feed", () => {
+    expect(ownFeed(null, "legion")).toBeNull();
+    expect(ownFeed("legion", "legion")).toBe("legion");
+    expect(() => ownFeed("other.near", "legion")).toThrow(/@other.near/);
+    expect(() => ownFeed("legion", null)).toThrow();
+  });
+});
+
 describe("feed links", () => {
   it("scopes hashtag pages to a feed", () => {
     expect(hashtagHref("near")).toBe("/hashtag/near");
     expect(hashtagHref("near", null)).toBe("/hashtag/near");
-    expect(hashtagHref("near", "feed.near")).toBe("/hashtag/near?channel=feed.near");
+    expect(hashtagHref("near", "feed.near", "legion")).toBe("/hashtag/near?channel=feed.near");
+    // No feeds configured: plain hashtag pages.
+    expect(hashtagHref("near", "feed.near", null)).toBe("/hashtag/near");
+    expect(hashtagChannel("legion", "legion")).toBe("legion");
+    expect(hashtagChannel("legion", null)).toBeNull();
+    expect(hashtagChannel(["legion"], "legion")).toBeNull();
+    expect(hashtagChannel("not an account", "legion")).toBeNull();
     expect(feedHref("feed.near")).toBe("/feed.near/feed");
   });
 
