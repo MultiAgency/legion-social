@@ -116,10 +116,9 @@ export const api = {
   forYouFeed: (p?: ListParams) => list<FeedItem>("/v1/feed/for_you", p),
   followingFeed: (account: string, p?: ListParams) =>
     list<FeedItem>(`/v1/feed/following/${enc(account)}`, p),
-  hashtagFeed: (tag: string, p?: ListParams, channel?: string | null) =>
-    list<FeedItem>(`/v1/hashtags/${enc(tag)}`, p, { channel }),
+  hashtagFeed: (tag: string, p?: ListParams) => list<FeedItem>(`/v1/hashtags/${enc(tag)}`, p),
   /** A home feed of `lib/legion/home-feeds` (docs/LEGION.md §4). */
-  pickedFeed: (path: string, p?: ListParams) => list<FeedItem>(path, p),
+  pickedFeed: (path: string, p?: ListParams, query?: Record<string, string>) => list<FeedItem>(path, p, query),
   channelFeed: (channel: string, p?: ListParams) => list<FeedItem>(`/v1/feed/channel/${enc(channel)}`, p),
   searchPosts: (q: string, p?: ListParams) => list<FeedItem>("/v1/search/posts", p, { q }),
 

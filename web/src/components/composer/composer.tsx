@@ -11,10 +11,8 @@ import type { AccountCard, Post } from "@/lib/api/types";
 import { useAccount } from "@/components/providers/account-provider";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { Button } from "@/components/ui/button";
-import { AudienceToggle } from "@/components/legion/audience-toggle";
-import { MembersOnlyReply, useReplyAllowed } from "@/components/legion/members-only-reply";
 import { writeFeed } from "@/lib/legion/feed";
-import { withTag, type Destination } from "@/lib/legion/home-feeds";
+import type { Destination } from "@/lib/legion/home-feeds";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/near/errors";
@@ -154,7 +152,6 @@ export function Composer({
 }: ComposerProps) {
   const { accountId, canWrite, requireKey, enablePosting, busy } = useAccount();
   const createPost = useCreatePost();
-  const replyAllowed = useReplyAllowed(replyTo, accountId);
   const editPost = useEditPost();
 
   const [text, setText] = React.useState(edit?.text ?? "");
@@ -173,8 +170,8 @@ export function Composer({
     })),
   );
   const [phase, setPhase] = React.useState<null | { label: string }>(null);
-  // A reply goes to its parent's feed; a new post to the one chosen (docs/LEGION.md §3).
-  const [channel, setChannel] = React.useState<string | null>(writeFeed(replyTo ? replyTo.channel : destination?.channel));
+  // A reply goes to its parent's feed; a new post to its tab's destination (docs/LEGION.md §4).
+  const channel = writeFeed(replyTo ? replyTo.channel : destination?.channel);
   const [expanded, setExpanded] = React.useState(variant !== "reply" || !!autoFocus);
   const [dragging, setDragging] = React.useState(false);
   const [caret, setCaret] = React.useState(0);
@@ -317,8 +314,7 @@ export function Composer({
       if (edit) {
         await editPost(edit, text, media);
       } else {
-        const body = destination?.publicTag && !channel && !replyTo ? withTag(text, destination.publicTag) : text;
-        await createPost({ text: body, media, replyTo, quote, channel });
+        await createPost({ text, media, replyTo, quote, channel });
       }
       setText("");
       setImages([]);
@@ -362,8 +358,6 @@ export function Composer({
   };
 
   if (!accountId) return null;
-  if (replyAllowed === "no") return <MembersOnlyReply className={className} />;
-  if (replyAllowed === "checking") return null;
 
   const needsKey = !canWrite;
   const ph =
@@ -508,9 +502,6 @@ export function Composer({
                 >
                   <ImagePlus className="size-5" />
                 </button>
-                {!edit && (replyTo || destination?.audience) && (
-                  <AudienceToggle value={channel} onChange={setChannel} disabled={!!phase} reply={!!replyTo} />
-                )}
               </div>
               <div className="flex items-center gap-3">
                 <RemainingRing used={used} />
@@ -522,7 +513,7 @@ export function Composer({
                   aria-busy={!!phase}
                 >
                   {(phase || processing) && <Loader2 className="animate-spin" />}
-                  {phase ? phase.label : edit ? "Save" : replyTo ? "Reply" : (destination?.label(channel) ?? "Post")}
+                  {phase ? phase.label : edit ? "Save" : replyTo ? "Reply" : (destination?.label ?? "Post")}
                 </Button>
               </div>
             </div>

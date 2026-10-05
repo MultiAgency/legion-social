@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAccount } from "@/components/providers/account-provider";
 import { Composer } from "@/components/composer/composer";
@@ -7,25 +8,32 @@ import { Feed } from "@/components/feed/feed";
 import { SignInHero } from "@/components/home/sign-in-hero";
 import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import type { FeedSpec, HomeTab } from "@/lib/api/queries";
-import { destinationFor, homeFeedId, type HomeFeedId } from "@/lib/legion/home-feeds";
-import { FeedAbout, useCanPost } from "./feed-about";
-import { FeedSwitcher } from "./feed-switcher";
+import { destinationFor, HOME_FEEDS, homeFeedId, type HomeFeedId, type PickedFeedId } from "@/lib/legion/home-feeds";
+import { FeedNote, useEligible } from "./feed-note";
+import { HashtagTab } from "./hashtag-tab";
 
 /**
- * Home with feeds to switch between (docs/LEGION.md §4): Everyone keeps upstream's For you /
- * Following / Latest; Legion, .agency and Builders are newest first. Each feed says who posts
- * there, and the post box shows only to those who can.
+ * Home with feeds (docs/LEGION.md §4): upstream's own tabs, For you / Following / Latest, are
+ * Everyone, unchanged; Multi, Legion, .agency and Builders are pinned after them, each with one line
+ * on who posts there. Each tab has one destination: Everyone and Legion post to `social`, Multi to
+ * the Multi feed account, and .agency and Builders have no post box.
  */
 export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: FeedSpec; onActiveClick: () => void }) {
   const { accountId } = useAccount();
   const id: HomeFeedId = homeFeedId(tab);
-  const canPost = useCanPost(id, accountId);
-  const destination = destinationFor(id);
+  const pinned: PickedFeedId | null = id === "everyone" ? null : id;
+  const eligible = useEligible(pinned ?? "legion", pinned ? accountId : null);
+  const destination = pinned && destinationFor(pinned);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  // Six tabs scroll sideways on a phone, starting at the left: keep the current one in view.
+  useEffect(() => {
+    tabsRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab]);
 
   return (
     <>
       <PageHeader title="Home" brandOnMobile>
-        {id === "everyone" && (
+        <div ref={tabsRef}>
           <HeaderTabs
             replace
             onActiveClick={onActiveClick}
@@ -33,42 +41,46 @@ export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: Fe
               { href: "/", label: "For you", active: tab === "for_you" },
               ...(accountId ? [{ href: "/?feed=following", label: "Following", active: tab === "following" }] : []),
               { href: "/?feed=latest", label: "Latest", active: tab === "latest" },
+              ...HOME_FEEDS.map((f) => ({ href: `/?feed=${f.id}`, label: f.label, active: f.id === id })),
             ]}
           />
-        )}
-        <FeedSwitcher current={id} />
+        </div>
       </PageHeader>
-      <FeedAbout id={id} canPost={canPost} />
+      {pinned && <FeedNote id={pinned} signedIn={!!accountId} eligible={eligible} />}
       {!accountId ? (
-        id === "everyone" && <SignInHero />
+        !pinned && <SignInHero />
+      ) : !pinned ? (
+        <Composer variant="inline" />
       ) : (
-        canPost &&
+        eligible &&
         destination && (
           <Composer
             key={id}
             variant="inline"
             destination={destination}
-            placeholder={id === "legion" ? "Say something to the Legion…" : undefined}
+            placeholder={pinned === "legion" ? "Say something to the Legion…" : undefined}
           />
         )
       )}
-      <Feed
-        key={`${tab}:${accountId ?? ""}`}
-        spec={spec}
-        // For you isn't chronological, so "N new posts" doesn't apply there.
-        newPostsPill={tab !== "for_you"}
-        empty={emptyState(id, tab, canPost)}
-      />
+      <HashtagTab.Provider value={pinned}>
+        <Feed
+          key={`${tab}:${accountId ?? ""}`}
+          spec={spec}
+          // For you isn't chronological, so "N new posts" doesn't apply there.
+          newPostsPill={tab !== "for_you"}
+          empty={emptyState(id, tab, eligible)}
+        />
+      </HashtagTab.Provider>
     </>
   );
 }
 
 function emptyState(id: HomeFeedId, tab: HomeTab, canPost: boolean | undefined) {
+  if (id === "multi") {
+    return { title: "Nothing in Multi yet", body: canPost ? "Write the first post. It stays off near.social." : undefined };
+  }
   if (id === "legion") {
-    return {
-      title: "No members-only posts yet",
-      body: canPost ? "Write the first post. It stays off near.social." : "Members' posts will show here.",
-    };
+    return { title: "No Legion posts yet", body: canPost ? "Write the first one." : "Members' posts will show here." };
   }
   if (tab === "following") {
     return {

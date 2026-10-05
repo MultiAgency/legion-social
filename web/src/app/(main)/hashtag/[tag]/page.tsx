@@ -3,10 +3,12 @@ import { notFound, redirect } from "next/navigation";
 import { HydrationBoundary } from "@tanstack/react-query";
 import { feedQuery } from "@/lib/api/queries";
 import { getViewer, prefetch } from "@/lib/api/server";
-import { hashtagChannel } from "@/lib/legion/feed";
+import { multiFeed } from "@/lib/legion/feed";
+import { hashtagFeed } from "@/lib/legion/home-feeds";
 import { normalizeHashtag } from "@/lib/social/text";
 import { siteName } from "@/lib/brand";
 import { HashtagView } from "@/components/search/hashtag-view";
+import { HashtagFeeds } from "@/components/legion/hashtag-feeds";
 
 type Params = Promise<{ tag: string }>;
 type Search = Promise<Record<string, string | string[] | undefined>>;
@@ -20,14 +22,14 @@ export default async function HashtagPage({ params, searchParams }: { params: Pa
   const raw = decodeURIComponent((await params).tag).replace(/^#/, "");
   const tag = normalizeHashtag(raw);
   if (!tag) notFound();
-  if (tag !== raw) redirect(`/hashtag/${encodeURIComponent(tag)}`);
-  // `?channel=`: the tag within one feed (docs/LEGION.md §3).
-  const channel = hashtagChannel((await searchParams).channel);
+  // `?feed=`: the tag within one pinned feed (docs/LEGION.md §4.4); without it, upstream's.
+  const { id, spec } = hashtagFeed(tag, (await searchParams).feed);
+  if (tag !== raw) redirect(`/hashtag/${encodeURIComponent(tag)}${id === "everyone" ? "" : `?feed=${id}`}`);
   const viewer = await getViewer();
-  const state = await prefetch((qc) => qc.prefetchInfiniteQuery(feedQuery({ kind: "hashtag", tag, channel }, viewer)));
+  const state = await prefetch((qc) => qc.prefetchInfiniteQuery(feedQuery(spec, viewer)));
   return (
     <HydrationBoundary state={state}>
-      <HashtagView tag={tag} channel={channel} />
+      {multiFeed ? <HashtagFeeds tag={tag} id={id} spec={spec} /> : <HashtagView tag={tag} />}
     </HydrationBoundary>
   );
 }

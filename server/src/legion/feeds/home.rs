@@ -1,8 +1,7 @@
 //! Home feeds (docs/LEGION.md §4): feeds that pick posts by who wrote them. Everyone is upstream's
 //! global feed; these three are Legion's, served only with Legion on.
 //!
-//! - Legion: posts sent to the `legion` feed account, plus `social` posts tagged #legion, by
-//!   members.
+//! - Legion: members' `social` posts (token-gated by author).
 //! - Names: `social` posts by accounts named `*.{tla}`, such as `.agency`.
 //! - Builders: `social` posts by NearBuilders members (`legion::builders`).
 //!
@@ -16,8 +15,6 @@ use actix_web::{web, HttpResponse};
 use serde::Deserialize;
 use serde_json::json;
 
-/// The hashtag that brings a public post into the Legion feed.
-pub const LEGION_TAG: &str = "legion";
 
 /// `?tag=`: scopes a feed to one hashtag (with or without `#`, any case).
 #[derive(Deserialize)]
@@ -63,17 +60,9 @@ impl State {
             .collect()
     }
 
-    /// The Legion feed: members' posts sent to the Legion feed account (`LEGION_FEED`), or on
-    /// `social` with #legion.
+    /// The Legion feed: members' top-level `social` posts (an account with a rank).
     pub fn feed_legion(&self, tag: Option<&str>, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
-        let Some(legion) = self.legion_feed() else { return vec![] };
-        self.home_feed(tag, before, limit, |pid| {
-            self.rank(self.post(pid).key.author).is_some()
-                && match self.channel_of(pid) {
-                    Some(feed) => feed == legion,
-                    None => self.has_tag(pid, LEGION_TAG),
-                }
-        })
+        self.home_feed(tag, before, limit, |pid| self.on_social(pid) && self.rank(self.post(pid).key.author).is_some())
     }
 
     /// A name feed: `social` posts by accounts named `*.{tla}`.

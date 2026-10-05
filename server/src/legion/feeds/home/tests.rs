@@ -44,9 +44,9 @@ fn legion_state(blocks: Vec<LogBlock>) -> State {
 }
 
 #[test]
-fn the_legion_feed_is_members_posts_to_legion_or_tagged_legion() {
+fn the_legion_feed_is_members_social_posts() {
     let mut state = legion_state(vec![
-        block(1, vec![("m.near", Some("legion"), json!({"post/1": {"text": "members only"}}))]),
+        block(1, vec![("m.near", Some("multi"), json!({"post/1": {"text": "in multi"}}))]),
         block(2, vec![("m.near", None, json!({"post/2": {"text": "public #legion"}}))]),
         block(3, vec![("m.near", None, json!({"post/3": {"text": "plain"}}))]),
         block(4, vec![("x.near", Some("legion"), json!({"post/1": {"text": "outsider to legion"}}))]),
@@ -55,11 +55,11 @@ fn the_legion_feed_is_members_posts_to_legion_or_tagged_legion() {
         block(7, vec![("m.near", Some("legion"), json!({"post/5": {"text": "reply", "reply_to": "m.near/1"}}))]),
     ]);
     member(&mut state, "m.near");
-    assert_eq!(texts(&state, state.feed_legion(None, None, 10)), ["public #legion", "members only"]);
-    // Everyone shows everyone, members or not, but never Legion-only posts.
+    assert_eq!(texts(&state, state.feed_legion(None, None, 10)), ["plain", "public #legion"]);
+    // Everyone shows everyone, members or not, but never posts sent to a feed account.
     let global = texts(&state, state.feed_global(None, 10));
     assert!(global.contains(&"outsider #legion".to_string()));
-    assert!(!global.contains(&"members only".to_string()));
+    assert!(!global.contains(&"in multi".to_string()));
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn the_tag_param_scopes_a_feed() {
         block(3, vec![("m.near", None, json!({"post/3": {"text": "#legion only"}}))]),
     ]);
     member(&mut state, "m.near");
-    assert_eq!(texts(&state, state.feed_legion(Some("city"), None, 10)), ["#legion #city", "meetup #city"]);
+    assert_eq!(texts(&state, state.feed_legion(Some("city"), None, 10)), ["#legion #city"]);
     assert!(state.feed_legion(Some("nothing"), None, 10).is_empty());
 }
 
@@ -134,83 +134,17 @@ fn a_tag_query_is_normalized() {
 }
 
 #[test]
-fn a_non_members_post_to_legion_appears_nowhere() {
-    use crate::api::dto::Ctx;
-    use crate::state::query::ProfileTab;
-    let mut state = legion_state(vec![
-        block(1, vec![("m.near", Some("legion"), json!({"post/1": {"text": "member #city"}}))]),
-        block(2, vec![("x.near", Some("legion"), json!({"post/1": {"text": "outsider #city"}}))]),
-        block(3, vec![("x.near", None, json!({"post/2": {"text": "outsider on social"}}))]),
-    ]);
-    member(&mut state, "m.near");
-    let x = state.aid("x.near").unwrap();
-    let hidden = state.pid_by_key[&crate::state::PostKey { author: x, id: 1 }];
-    assert!(!state.is_visible(hidden));
-    assert_eq!(texts(&state, state.feed_channel("legion", None, 10)), ["member #city"]);
-    assert_eq!(texts(&state, state.feed_hashtag("legion", "city", None, 10)), ["member #city"]);
-    assert_eq!(texts(&state, state.feed_legion(None, None, 10)), ["member #city"]);
-    assert_eq!(texts(&state, state.account_feed(x, ProfileTab::Posts, None, 10)), ["outsider on social"]);
-    assert_eq!(texts(&state, state.search_posts("outsider", None, 10)), ["outsider on social"]);
-    let ctx = Ctx { state: &state, viewer: None, gateway: "", site_hosts: &[], unfurl: None };
-    assert!(ctx.post(hidden, true).is_none());
-    // Its feed shows only the member's post, so the account has a feed; with no member posts, none.
-    assert!(state.has_feed("legion"));
-    let only_outsider = legion_state(vec![block(1, vec![("x.near", Some("legion"), json!({"post/1": {"text": "hi"}}))])]);
-    assert!(!only_outsider.has_feed("legion"));
-    // Once the account becomes a member, its post shows.
-    member(&mut state, "x.near");
-    assert!(state.is_visible(hidden));
-}
-
-#[test]
-fn the_legion_feed_account_is_configurable() {
-    let mut state = legion_state(vec![
-        block(1, vec![("m.near", Some("lounge"), json!({"post/1": {"text": "member to lounge"}}))]),
-        block(2, vec![("x.near", Some("lounge"), json!({"post/1": {"text": "outsider to lounge"}}))]),
-        block(3, vec![("x.near", Some("legion"), json!({"post/2": {"text": "outsider to legion"}}))]),
-    ]);
-    state.set_legion_feed("lounge");
-    member(&mut state, "m.near");
-    // `lounge` is the Legion feed: members only, and listed by /v1/feed/legion.
-    assert_eq!(texts(&state, state.feed_legion(None, None, 10)), ["member to lounge"]);
-    assert_eq!(texts(&state, state.feed_channel("lounge", None, 10)), ["member to lounge"]);
-    // `legion` is now just another feed account: open, and not the Legion feed.
-    assert_eq!(texts(&state, state.feed_channel("legion", None, 10)), ["outsider to legion"]);
-    assert!(crate::legion::parse_feed(Some("lounge")).is_ok());
-    assert_eq!(crate::legion::parse_feed(None).unwrap(), "legion");
-    assert_eq!(crate::legion::parse_feed(Some("  ")).unwrap(), "legion");
-    assert!(crate::legion::parse_feed(Some("Not An Account")).is_err());
-}
-
-#[test]
-fn a_hidden_reply_doesnt_count() {
-    let mut state = legion_state(vec![
-        block(1, vec![("m.near", Some("legion"), json!({"post/1": {"text": "members only"}}))]),
-        block(2, vec![("x.near", Some("legion"), json!({"post/1": {"text": "outsider reply", "reply_to": "m.near/1"}}))]),
-        block(3, vec![("n.near", Some("legion"), json!({"post/1": {"text": "member reply", "reply_to": "m.near/1"}}))]),
-    ]);
-    member(&mut state, "m.near");
-    member(&mut state, "n.near");
-    let parent = state.pid_by_key[&crate::state::PostKey { author: state.aid("m.near").unwrap(), id: 1 }];
-    assert_eq!(state.post(parent).replies, 2, "upstream's stored counter");
-    assert_eq!(state.reply_count(parent), 1);
-    assert_eq!(state.post_replies(parent, 0, 10).0.len(), 1);
-    member(&mut state, "x.near");
-    assert_eq!(state.reply_count(parent), 2);
-}
-
-#[test]
-fn a_hidden_post_sends_no_notifications() {
-    let mut state = legion_state(vec![
-        block(1, vec![("m.near", Some("legion"), json!({"post/1": {"text": "members only"}}))]),
-        block(2, vec![("x.near", Some("legion"), json!({"post/1": {"text": "hey @m.near", "reply_to": "m.near/1"}}))]),
-        block(3, vec![("x.near", Some("legion"), json!({"post/2": {"text": "quoting", "quote": "m.near/1"}}))]),
-    ]);
-    member(&mut state, "m.near");
-    let m = state.aid("m.near").unwrap();
-    // The non-member's reply, mention and quote are hidden, so they notify nobody.
-    assert!(state.notifications(m, None, 10).is_empty());
-    // Once the author becomes a member, they show.
-    member(&mut state, "x.near");
-    assert!(!state.notifications(m, None, 10).is_empty());
+fn tag_scopes_names_and_builders_too() {
+    let state = legion_state(vec![block(
+        1,
+        vec![
+            ("x.agency", None, json!({"post/1": {"text": "#city in agency"}})),
+            ("y.agency", None, json!({"post/1": {"text": "agency, no tag"}})),
+            ("b.near", None, json!({"post/1": {"text": "#city builder"}})),
+            ("c.near", None, json!({"post/1": {"text": "#city not a builder"}})),
+        ],
+    )]);
+    assert_eq!(texts(&state, state.feed_names("agency", Some("city"), None, 10)), ["#city in agency"]);
+    let members: builders::Members = std::sync::Arc::new(["b.near".to_string()].into_iter().collect());
+    assert_eq!(texts(&state, state.feed_builders(&members, Some("city"), None, 10)), ["#city builder"]);
 }

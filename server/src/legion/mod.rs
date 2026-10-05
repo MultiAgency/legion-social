@@ -26,7 +26,6 @@
 
 use crate::api::AppState;
 use crate::config::Config;
-use crate::model::account_id::is_valid_account_id;
 use crate::state::{Aid, State};
 use actix_web::http::header::CACHE_CONTROL;
 use actix_web::{web, HttpResponse};
@@ -73,9 +72,6 @@ pub struct Settings {
     /// Each rank's SBT contract.
     pub contracts: Vec<(Rank, String)>,
     pub refresh: Duration,
-    /// The Legion feed account, `LEGION_FEED` (default `legion`). The web's
-    /// `NEXT_PUBLIC_LEGION_FEED` must name the same account.
-    pub feed: String,
 }
 
 impl Settings {
@@ -89,17 +85,7 @@ impl Settings {
             Some(v) => Duration::from_secs(v.parse().context("LEGION_REFRESH_SECS")?),
             None => Duration::from_secs(3600),
         };
-        let feed = parse_feed(std::env::var("LEGION_FEED").ok().as_deref())?;
-        Ok(Some(Self { contracts: parse_contracts(&contracts)?, refresh, feed }))
-    }
-}
-
-/// `LEGION_FEED`: a valid account ID, `legion` when unset or empty.
-pub(crate) fn parse_feed(value: Option<&str>) -> Result<String> {
-    match value.map(str::trim).filter(|v| !v.is_empty()) {
-        None => Ok(DEFAULT_FEED.into()),
-        Some(feed) if is_valid_account_id(feed) => Ok(feed.into()),
-        Some(feed) => bail!("LEGION_FEED is not a valid account ID: {feed}"),
+        Ok(Some(Self { contracts: parse_contracts(&contracts)?, refresh }))
     }
 }
 
@@ -127,23 +113,13 @@ fn parse_contracts(value: &str) -> Result<Vec<(Rank, String)>> {
     Ok(contracts)
 }
 
-/// The Legion feed account's default (docs/LEGION.md §3).
-pub const DEFAULT_FEED: &str = "legion";
-
 /// What the indexer knows about each account's membership.
+#[derive(Default)]
 pub struct Members {
     /// Members only, by rank.
     ranks: FxHashMap<Aid, Rank>,
     /// When each account was last checked (ms). An account not here hasn't been checked yet.
     checked: FxHashMap<Aid, u64>,
-    /// The Legion feed account (`LEGION_FEED`): posts sent to it are members only.
-    feed: Box<str>,
-}
-
-impl Default for Members {
-    fn default() -> Self {
-        Self { ranks: Default::default(), checked: Default::default(), feed: DEFAULT_FEED.into() }
-    }
 }
 
 /// One account's last check, as the snapshot keeps it (by name: account IDs survive a rebuild
@@ -158,17 +134,6 @@ impl State {
     /// Turns the Legion filter on: from now on only checked members are visible.
     pub fn enable_legion(&mut self) {
         self.legion.get_or_insert_with(Members::default);
-    }
-
-    /// The Legion feed account; `None` with Legion off.
-    pub fn legion_feed(&self) -> Option<&str> {
-        self.legion.as_ref().map(|m| &*m.feed)
-    }
-
-    pub fn set_legion_feed(&mut self, feed: &str) {
-        if let Some(m) = &mut self.legion {
-            m.feed = feed.into();
-        }
     }
 
     /// The account's Legion rank; `None` for non-members, unchecked accounts, or with Legion off.
@@ -270,9 +235,8 @@ static CHECKER: OnceLock<Checker> = OnceLock::new();
 /// replays, so a replay applies feed rows exactly when Legion is on (docs/LEGION.md §3).
 pub fn new_state() -> Result<State> {
     let mut state = State::new();
-    if let Some(settings) = Settings::from_env()? {
+    if Settings::from_env()?.is_some() {
         state.enable_legion();
-        state.set_legion_feed(&settings.feed);
     }
     Ok(state)
 }

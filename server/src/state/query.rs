@@ -58,7 +58,7 @@ impl State {
     /// A live post whose author isn't hidden.
     pub fn is_visible(&self, pid: Pid) -> bool {
         let post = self.post(pid);
-        post.is_live() && !self.is_hidden(post.key.author) && self.passes_feed_rule(pid)
+        post.is_live() && !self.is_hidden(post.key.author)
     }
 
     pub(crate) fn body(&self, pid: Pid) -> Option<&PostBody> {
@@ -377,7 +377,7 @@ impl State {
                 .is_some_and(|p| self.reposts.contains_key(&(n.actor, p)) && self.post(p).is_live()),
             NotifKind::Follow => self.account(recipient).followers.contains_key(&n.actor),
             NotifKind::Reply | NotifKind::Quote | NotifKind::Mention => {
-                n.post.is_some_and(|p| self.post(p).is_live() && self.passes_feed_rule(p))
+                n.post.is_some_and(|p| self.post(p).is_live())
             }
         }
     }

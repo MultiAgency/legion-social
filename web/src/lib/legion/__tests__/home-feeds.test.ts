@@ -1,52 +1,73 @@
 import { describe, expect, it } from "vitest";
-import { destinationFor, hasTag, homeFeedId, pickedFeedPath, pickedFeedsFor, pickedHomeFeed, withTag } from "../home-feeds";
+import {
+  destinationFor,
+  HOME_FEEDS,
+  hashtagFeed,
+  hashtagFeedFor,
+  homeFeedId,
+  pickedFeedRequest,
+  pickedFeedsFor,
+  pickedHomeFeed,
+} from "../home-feeds";
 
 describe("home feeds", () => {
-  it("are picked by ?feed= only with a Legion feed configured", () => {
-    expect(homeFeedId("legion", "legion")).toBe("legion");
-    expect(homeFeedId("agency", "legion")).toBe("agency");
-    expect(homeFeedId("builders", "legion")).toBe("builders");
-    expect(homeFeedId("latest", "legion")).toBe("everyone");
-    expect(homeFeedId(null, "legion")).toBe("everyone");
-    expect(homeFeedId("legion", null)).toBe("everyone");
-    expect(pickedHomeFeed("builders", "legion")).toEqual({ tab: "builders", spec: { kind: "picked", feed: "builders" } });
+  it("are pinned in order after upstream's tabs", () => {
+    expect(HOME_FEEDS.map((f) => f.label)).toEqual(["Multi", "Legion", ".agency", "Builders"]);
+  });
+
+  it("are picked by ?feed= only with a Multi feed configured", () => {
+    for (const id of ["multi", "legion", "agency", "builders"]) expect(homeFeedId(id, "multi")).toBe(id);
+    expect(homeFeedId("latest", "multi")).toBe("everyone");
+    expect(homeFeedId(null, "multi")).toBe("everyone");
+    expect(homeFeedId("space", "multi")).toBe("everyone");
+    expect(homeFeedId("multi", null)).toBe("everyone");
+    expect(pickedHomeFeed("multi", "multi")).toEqual({ tab: "multi", spec: { kind: "picked", feed: "multi" } });
     expect(pickedHomeFeed("builders", null)).toBeNull();
   });
 
-  it("map to their API paths", () => {
-    expect(pickedFeedPath("legion")).toBe("/v1/feed/legion");
-    expect(pickedFeedPath("agency")).toBe("/v1/feed/names/agency");
-    expect(pickedFeedPath("builders")).toBe("/v1/feed/builders");
+  it("read their endpoints, within a hashtag when given", () => {
+    expect(pickedFeedRequest("multi", null, "multi")).toEqual({ path: "/v1/feed/channel/multi", query: {} });
+    expect(pickedFeedRequest("multi", "city", "multi")).toEqual({ path: "/v1/hashtags/city", query: { channel: "multi" } });
+    expect(pickedFeedRequest("legion", null, "multi")).toEqual({ path: "/v1/feed/legion", query: {} });
+    expect(pickedFeedRequest("legion", "city", "multi")).toEqual({ path: "/v1/feed/legion", query: { tag: "city" } });
+    expect(pickedFeedRequest("agency", "city", "multi")).toEqual({ path: "/v1/feed/names/agency", query: { tag: "city" } });
+    expect(pickedFeedRequest("builders", null, "multi")).toEqual({ path: "/v1/feed/builders", query: {} });
   });
 
-  it("name where the post button sends a post", () => {
-    const legion = destinationFor("legion", "legion")!;
-    expect(legion.channel).toBe("legion");
-    expect(legion.audience).toBe(true);
-    expect([legion.label("legion"), legion.label(null)]).toEqual(["Post to members", "Post in public"]);
-    expect(destinationFor("everyone", "legion")!.label(null)).toBe("Post to Everyone");
-    expect(destinationFor("builders", "legion")!.channel).toBeNull();
-    expect(destinationFor("agency", "legion")).toBeNull();
+  it("have one destination each: Multi to its feed account, Legion to social, none for the rest", () => {
+    expect(destinationFor("multi", "multi")).toEqual({ channel: "multi", label: "Post to Multi" });
+    expect(destinationFor("legion", "multi")).toEqual({ channel: null, label: "Post to Legion" });
+    expect(destinationFor("agency", "multi")).toBeNull();
+    expect(destinationFor("builders", "multi")).toBeNull();
+    expect(destinationFor("multi", null)).toBeNull();
+  });
+
+  it("put a new post on the right tab right away, by the server's rules", () => {
+    const post = { channel: null as string | null, reply: false, member: true };
+    expect(pickedFeedsFor(post, "multi")).toEqual([{ kind: "picked", feed: "legion" }]);
+    expect(pickedFeedsFor({ ...post, member: false }, "multi")).toEqual([]);
+    expect(pickedFeedsFor({ ...post, reply: true }, "multi")).toEqual([]);
+    // Multi is open to everyone, and its feed lists replies too.
+    expect(pickedFeedsFor({ channel: "multi", reply: true, member: false }, "multi")).toEqual([{ kind: "picked", feed: "multi" }]);
+    expect(pickedFeedsFor({ ...post, channel: "other.near" }, "multi")).toEqual([]);
+    expect(pickedFeedsFor(post, null)).toEqual([]);
   });
 });
 
-describe("#legion on public posts", () => {
-  it("is appended once, whatever its case", () => {
-    expect(withTag("city node call", "legion")).toBe("city node call #legion");
-    expect(withTag("call #Legion tonight", "legion")).toBe("call #Legion tonight");
-    expect(withTag("see #legionnaires", "legion")).toBe("see #legionnaires #legion");
-    expect(hasTag("mail@x#legion", "legion")).toBe(false);
+describe("hashtags per feed", () => {
+  it("the hashtag page picks its feed by ?feed=, upstream's without it", () => {
+    expect(hashtagFeed("city", undefined, "multi")).toEqual({ id: "everyone", spec: { kind: "hashtag", tag: "city" } });
+    expect(hashtagFeed("city", "multi", "multi")).toEqual({ id: "multi", spec: { kind: "picked", feed: "multi", tag: "city" } });
+    expect(hashtagFeed("city", "legion", "multi").spec).toEqual({ kind: "picked", feed: "legion", tag: "city" });
+    expect(hashtagFeed("city", ["multi"], "multi").id).toBe("everyone");
+    expect(hashtagFeed("city", "multi", null)).toEqual({ id: "everyone", spec: { kind: "hashtag", tag: "city" } });
   });
 
-  it("puts a new post on the Legion feed right away only by the server's rule", () => {
-    const legion = [{ kind: "picked", feed: "legion" }];
-    const post = { channel: null as string | null, text: "hi", reply: false, member: true };
-    expect(pickedFeedsFor({ ...post, channel: "legion" }, "legion")).toEqual(legion);
-    expect(pickedFeedsFor({ ...post, text: "hi #legion" }, "legion")).toEqual(legion);
-    expect(pickedFeedsFor(post, "legion")).toEqual([]);
-    // Replies and non-members' posts aren't in the Legion feed.
-    expect(pickedFeedsFor({ ...post, channel: "legion", reply: true }, "legion")).toEqual([]);
-    expect(pickedFeedsFor({ ...post, text: "hi #legion", member: false }, "legion")).toEqual([]);
-    expect(pickedFeedsFor({ ...post, channel: "legion" }, null)).toEqual([]);
+  it("links inside posts stay in the feed they're shown in, and Multi posts always link there", () => {
+    expect(hashtagFeedFor(null, null, "multi")).toBeNull();
+    expect(hashtagFeedFor(null, "builders", "multi")).toBe("builders");
+    expect(hashtagFeedFor("multi", null, "multi")).toBe("multi");
+    expect(hashtagFeedFor("multi", "legion", "multi")).toBe("multi");
+    expect(hashtagFeedFor("multi", "builders", null)).toBeNull();
   });
 });
