@@ -367,3 +367,42 @@ fn a_block_mixing_feed_and_social_actions_replays_as_upstream_with_legion_off() 
     // The skipped feed action gets no /v1/tx report.
     assert_eq!(fx.tx_hashes, vec!["tx2-1".to_string()]);
 }
+
+#[test]
+fn a_feed_action_reads_as_empty_to_a_build_without_feeds() {
+    let b = block(1, vec![("a.near", Some("legion"), json!({"post/1": {"text": "legion only"}}))]);
+    let line = serde_json::to_value(&b).unwrap();
+    let action = &line["a"][0];
+    // Its rows live under `c`, never in `r`.
+    assert!(action.get("r").is_none());
+    assert_eq!(action["c"]["f"], "legion");
+    assert_eq!(action["c"]["r"][0][0], "post/1");
+    // A build that doesn't know `c` (upstream, or before feeds) ignores it and applies nothing.
+    let mut old = line.clone();
+    old["a"][0].as_object_mut().unwrap().remove("c");
+    let old: LogBlock = serde_json::from_value(old).unwrap();
+    let mut state = legion_state();
+    state.apply_block(&old);
+    assert_eq!(state.counts.posts, 0);
+    // This build replays it as the Legion-only post it is.
+    let mut state = legion_state();
+    apply(&mut state, serde_json::from_value(line).unwrap());
+    assert_eq!(state.channel_of(pid(&state, "a.near", 1)), Some("legion"));
+}
+
+#[test]
+fn the_channel_param_is_ignored_with_legion_off() {
+    let social = vec![("a.near", None, json!({"post/1": {"text": "#near"}}))];
+    let legion_channel = FeedQuery { channel: Some("legion".into()) };
+    let bad_channel = FeedQuery { channel: Some("not an account".into()) };
+    // Off: upstream's list, whatever the parameter says.
+    let mut off = State::new();
+    off.apply_block(&block(1, social.clone()));
+    assert_eq!(texts(&off, legion_channel.hashtag(&off, "near", None, 10).unwrap()), vec!["#near"]);
+    assert_eq!(texts(&off, bad_channel.hashtag(&off, "near", None, 10).unwrap()), vec!["#near"]);
+    // On: the feed's list, and a bad account is an error.
+    let mut on = legion_state();
+    apply(&mut on, block(1, social));
+    assert!(legion_channel.hashtag(&on, "near", None, 10).unwrap().is_empty());
+    assert!(bad_channel.hashtag(&on, "near", None, 10).is_err());
+}

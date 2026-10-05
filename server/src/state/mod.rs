@@ -405,11 +405,12 @@ impl State {
                 keys: vec![],
                 file: None,
             };
-            for (key, value) in &action.r {
+            let (feed, rows) = crate::legion::feeds::rows(action);
+            for (key, value) in rows {
                 let (status, reason) = if row < MAX_ROWS_PER_BLOCK {
                     let seq = make_seq(block.b, row);
                     row += 1;
-                    self.apply_channel_row(action.c.as_deref(), seq, ms, &action.p, key, value, &mut fx)
+                    self.apply_channel_row(feed, seq, ms, &action.p, key, value, &mut fx)
                 } else {
                     (KeyStatus::RateLimited, Some("block row limit".into()))
                 };

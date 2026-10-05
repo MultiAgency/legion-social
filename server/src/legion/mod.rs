@@ -272,8 +272,6 @@ pub struct Checker {
 /// The one checker, shared by `watch` and the membership endpoint; unset with Legion off.
 static CHECKER: OnceLock<Checker> = OnceLock::new();
 
-/// Turns Legion on if `LEGION_CONTRACTS` is set: restores the snapshot and starts the watcher.
-/// Call after the log is replayed and before the API serves.
 /// A fresh state, with Legion on when `LEGION_CONTRACTS` is set. Legion is on before the event log
 /// replays, so a replay applies feed rows exactly when Legion is on (docs/LEGION.md §3).
 pub fn new_state() -> Result<State> {
@@ -284,6 +282,8 @@ pub fn new_state() -> Result<State> {
     Ok(state)
 }
 
+/// If `LEGION_CONTRACTS` is set: restores the membership snapshot and starts the watcher. Call
+/// after the log is replayed and before the API serves.
 pub fn spawn(state: &Arc<RwLock<State>>, config: &Config) -> Result<()> {
     let Some(settings) = Settings::from_env()? else { return Ok(()) };
     start(state, &config.data_dir);
@@ -553,6 +553,10 @@ async fn membership(app: web::Data<AppState>, path: web::Path<String>) -> HttpRe
 
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.route("/v1/legion/{account}", web::get().to(membership));
+    // Feeds are part of Legion (docs/LEGION.md §3).
+    if CHECKER.get().is_some() {
+        feeds::routes(cfg);
+    }
 }
 
 pub mod feeds;

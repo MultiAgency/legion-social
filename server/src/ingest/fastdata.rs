@@ -50,9 +50,9 @@ pub struct LogAction {
     /// dropped keys (a key over 1024 bytes is cut to its first 64 bytes)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub d: Vec<(String, DropReason)>,
-    /// The receiver when it isn't the social account: the post's channel (docs/LEGION.md §3).
+    /// A feed action's feed and rows, kept out of `r` (docs/LEGION.md §3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub c: Option<String>,
+    pub c: Option<crate::legion::feeds::FeedRows>,
 }
 
 /// One block's worth of `social` writes: one line of the event log.

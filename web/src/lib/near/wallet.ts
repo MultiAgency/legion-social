@@ -101,7 +101,8 @@ async function walletFor(accountId: string, theme?: "dark" | "light"): Promise<W
   return selector.wallet();
 }
 
-async function send(accountId: string, actions: Action[], theme?: "dark" | "light") {
+/** One wallet approval for `actions` on the account itself (also used by lib/legion/feed-send). */
+export async function send(accountId: string, actions: Action[], theme?: "dark" | "light") {
   const wallet = await walletFor(accountId, theme);
   try {
     return await wallet.signAndSendTransaction({
@@ -121,21 +122,16 @@ export function allowanceYocto(): bigint {
   return micro * BigInt(10) ** BigInt(18);
 }
 
-function addPostingKeyAction(publicKey: string, receiverId = env.socialAccountId, methods = POSTING_METHODS): Action {
+function addPostingKeyAction(publicKey: string): Action {
   return actionCreators.addKey(
     PublicKey.fromString(publicKey),
-    actionCreators.functionCallAccessKey(receiverId, methods, allowanceYocto()),
+    actionCreators.functionCallAccessKey(env.socialAccountId, POSTING_METHODS, allowanceYocto()),
   );
 }
 
 /** One wallet approval: AddKey(app key, FunctionCall to `social`, posting methods, allowance). */
 export async function addPostingKey(accountId: string, publicKey: string, theme?: "dark" | "light") {
   await send(accountId, [addPostingKeyAction(publicKey)], theme);
-}
-
-/** One wallet approval: AddKey(key, FunctionCall to `channel`, `__fastdata_kv`) (docs/LEGION.md §3). */
-export async function addChannelKey(accountId: string, publicKey: string, channel: string, theme?: "dark" | "light") {
-  await send(accountId, [addPostingKeyAction(publicKey, channel, ["__fastdata_kv"])], theme);
 }
 
 /** One wallet approval: `[AddKey(new), DeleteKey(old)]`. */

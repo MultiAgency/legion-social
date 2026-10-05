@@ -1,5 +1,6 @@
-//! Tails final blocks from neardata and feeds `__fastdata_kv` writes to the social account into
-//! the event log and the state. The loop mirrors fastdata-indexer's main-indexer.
+//! Tails final blocks from neardata and feeds `__fastdata_kv` writes to the social account (and,
+//! with Legion on, to feeds: `legion::feeds::classify`) into the event log and the state. The loop
+//! mirrors fastdata-indexer's main-indexer.
 
 use crate::config::Config;
 use crate::ingest::fastdata::{compute_order_id, parse_action, parse_fastfs_header, FastfsHeader, LogBlock};

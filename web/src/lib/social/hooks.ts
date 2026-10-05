@@ -43,7 +43,7 @@ import {
 } from "./standard";
 import { extractHashtags, extractMentions } from "./text";
 
-import { writeFeed } from "@/lib/legion/feed";
+import { ownFeed, writeFeed } from "@/lib/legion/feed";
 
 const loadKv = () => import("@/lib/near/kv");
 
@@ -441,8 +441,7 @@ export function useEditPost() {
       });
       let hash: string;
       try {
-        // The post's own feed: the server reports only unclaimed feeds (docs/LEGION.md §3).
-        hash = await writeKv(accountId, data, { channel: post.channel });
+        hash = await writeKv(accountId, data, { channel: ownFeed(post.channel) });
       } catch (err) {
         patchPostEverywhere(qc, post.key, restore);
         throw err;
@@ -475,7 +474,7 @@ export function useDeletePost() {
       }
       try {
         const { writeKv } = await loadKv();
-        const hash = await writeKv(accountId, data, { channel: post.channel });
+        const hash = await writeKv(accountId, data, { channel: ownFeed(post.channel) });
         toast.success("Post deleted", {
           description: "Earlier versions stay in the public FastData history.",
         });
