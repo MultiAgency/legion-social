@@ -73,6 +73,9 @@ pub struct ProfileDto<'a> {
     pub joined_at: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rank: Option<Rank>,
+    /// Posts were sent to this account as a feed (docs/LEGION.md §3); absent otherwise.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub has_feed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub viewer: Option<AccountViewer>,
 }
@@ -261,6 +264,7 @@ impl<'a> Ctx<'a> {
                 },
                 joined_at: None,
                 rank: None,
+                has_feed: self.state.has_feed(account_id),
                 viewer: self.viewer.map(|_| AccountViewer {
                     following: false,
                     followed_by: false,
@@ -292,6 +296,7 @@ impl<'a> Ctx<'a> {
             },
             joined_at: account.joined_ms,
             rank: self.state.rank(aid),
+            has_feed: self.state.has_feed(account_id),
             viewer: self.account_viewer(aid),
         }
     }

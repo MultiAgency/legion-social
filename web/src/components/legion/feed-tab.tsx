@@ -1,9 +1,9 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "@/components/providers/account-provider";
 import { Feed } from "@/components/feed/feed";
-import { feedQuery } from "@/lib/api/queries";
+import { profileQuery } from "@/lib/api/queries";
 import { feedHref, legionFeed } from "@/lib/legion/feed";
 import { feedName } from "./feed-label";
 
@@ -14,13 +14,10 @@ import { feedName } from "./feed-label";
 export function useFeedTab(account: string, pathname: string): { href: string; label: string } | null {
   const { accountId } = useAccount();
   const href = feedHref(account);
-  const { data } = useInfiniteQuery({
-    ...feedQuery({ kind: "channel", channel: account }, accountId),
-    enabled: !!legionFeed,
-  });
+  // The profile the header already loaded says whether the account has a feed.
+  const { data: profile } = useQuery({ ...profileQuery(account, accountId), enabled: !!legionFeed });
   if (!legionFeed) return null;
-  const hasPosts = (data?.pages[0]?.items.length ?? 0) > 0;
-  return hasPosts || pathname === href ? { href, label: "Feed" } : null;
+  return profile?.has_feed || pathname === href ? { href, label: "Feed" } : null;
 }
 
 /** The posts sent to `account`. */

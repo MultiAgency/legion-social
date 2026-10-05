@@ -70,7 +70,7 @@ pub async fn run(
     let mut last_checkpoint = Instant::now();
     let mut last_height = start_block_height.saturating_sub(1);
     // Feeds are part of Legion (docs/LEGION.md §3): off with it.
-    let feeds_on = state.read().legion.is_some();
+    let feeds_on = state.read().reads_feeds();
     while let Some(block) = receiver.recv().await {
         let height = block.block.header.height;
         let timestamp_ns = block.block.header.timestamp;

@@ -1,4 +1,3 @@
-import { api } from "@/lib/api/client";
 import { getProfileCached } from "@/lib/api/server";
 import { legionFeed } from "@/lib/legion/feed";
 
@@ -9,11 +8,8 @@ import { legionFeed } from "@/lib/legion/feed";
 export async function leadsWithFeed(account: string, viewer: string | null): Promise<boolean> {
   if (!legionFeed) return false;
   try {
-    const [profile, feed] = await Promise.all([
-      getProfileCached(account, viewer),
-      api.channelFeed(account, { limit: 1 }),
-    ]);
-    return !profile.has_profile && feed.items.length > 0;
+    const profile = await getProfileCached(account, viewer);
+    return !profile.has_profile && !!profile.has_feed;
   } catch {
     return false;
   }

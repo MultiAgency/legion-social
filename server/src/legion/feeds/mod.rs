@@ -9,20 +9,17 @@
 //! `social` only, replay skips feed actions already in the log (Legion is on before replay:
 //! `legion::new_state`), and the feed routes aren't registered, so everything behaves as upstream.
 
-use crate::api::{AppState, ListQuery};
+use crate::api::{account_param, feed_page, respond, AppState, ListQuery};
 use crate::ingest::fastdata::{ActionStatus, LogAction};
-use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse};
 use fastnear_primitives::near_primitives::errors::{ActionErrorKind, TxExecutionError};
 use fastnear_primitives::near_primitives::views::ExecutionStatusView;
 use crate::model::account_id::is_valid_account_id;
 use crate::model::keys::{parse_key, Key};
-use crate::state::query::FeedEntry;
+use crate::state::query::{newest_first, FeedEntry, MAX_SCAN};
 use crate::state::{BlockEffects, KeyStatus, Pid, PostKey, Seq, State};
 use rustc_hash::FxHashMap;
 
-/// Upper bound on entries inspected per request, as in `state::query`.
-const MAX_SCAN: usize = 100_000;
 
 /// `?channel={account}`: scopes a list to one channel feed; absent or empty is `social`.
 #[derive(serde::Deserialize)]
@@ -50,10 +47,12 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 
 /// `GET /v1/feed/channel/{account}`: a feed's posts, newest first.
 async fn feed_channel(app: web::Data<AppState>, path: web::Path<String>, q: web::Query<ListQuery>) -> HttpResponse {
-    if !is_valid_account_id(&path) {
-        return super::error(StatusCode::BAD_REQUEST, "invalid_account_id", format!("invalid account id: {path}"));
-    }
-    crate::api::feed_list(&app, &q, |state, before, limit| state.feed_channel(&path, before, limit))
+    respond((|| {
+        let channel = account_param(&path)?;
+        let state = app.state.read();
+        let entries = state.feed_channel(channel, q.cursor()?, q.limit());
+        feed_page(&app, &state, &q, entries)
+    })())
 }
 
 #[derive(Default)]
@@ -184,6 +183,12 @@ impl State {
         result
     }
 
+    /// Whether `account`'s feed has a post its feed would show: the first visible one, newest
+    /// first, with the feed's own visibility (denylist, Legion membership). False with Legion off.
+    pub fn has_feed(&self, account: &str) -> bool {
+        self.reads_feeds() && !self.feed_channel(account, None, 1).is_empty()
+    }
+
     /// The channel a post was created in; `None` for a post on `social`.
     pub fn channel_of(&self, pid: Pid) -> Option<&str> {
         self.channels.by_post.get(&pid).map(|c| &**c)
@@ -199,15 +204,12 @@ impl State {
         let Some(list) = self.hashtags.get(tag) else {
             return vec![];
         };
-        let end = before.map_or(list.len(), |b| list.partition_point(|e| e.0 < b));
-        list[..end]
-            .iter()
-            .rev()
+        newest_first(list, before)
             .take(MAX_SCAN)
             .filter(|&&(_, pid)| {
                 self.is_visible(pid)
                     && self.channel_of(pid) == Some(feed)
-                    && self.post(pid).body.as_ref().is_some_and(|b| b.hashtags.iter().any(|t| &**t == tag))
+                    && self.body(pid).is_some_and(|b| b.hashtags.iter().any(|t| &**t == tag))
             })
             .map(|&(seq, pid)| FeedEntry::Post { seq, pid })
             .take(limit)
@@ -219,10 +221,7 @@ impl State {
         let Some(posts) = self.channels.feeds.get(channel) else {
             return vec![];
         };
-        let end = before.map_or(posts.len(), |b| posts.partition_point(|e| e.0 < b));
-        posts[..end]
-            .iter()
-            .rev()
+        newest_first(posts, before)
             .take(MAX_SCAN)
             .filter(|&&(_, pid)| self.is_visible(pid))
             .map(|&(seq, pid)| FeedEntry::Post { seq, pid })

@@ -12,6 +12,7 @@ import { getKeyPair, getOrCreateKey, getPublicKey } from "@/lib/near/keystore";
 import { sendSocialCall, type SendOptions } from "@/lib/near/queue";
 import { viewAccessKey } from "@/lib/near/rpc";
 import { loadWallet } from "@/lib/near/wallet-loader";
+import { sleep } from "@/lib/utils";
 import { feedKeyId } from "./feed-keys";
 
 /** Whether a wallet error means the person cancelled (as the account provider reads it). */
@@ -25,7 +26,7 @@ async function waitForKey(accountId: string, publicKey: string, timeoutMs: numbe
     // Right after the wallet's AddKey, a failed lookup is worth retrying.
     if (await viewAccessKey(accountId, publicKey).catch(() => null)) return true;
     if (Date.now() > deadline) return false;
-    await new Promise((r) => setTimeout(r, 1500));
+    await sleep(1500);
   }
 }
 

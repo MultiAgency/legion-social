@@ -406,3 +406,35 @@ fn the_channel_param_is_ignored_with_legion_off() {
     assert!(legion_channel.hashtag(&on, "near", None, 10).unwrap().is_empty());
     assert!(bad_channel.hashtag(&on, "near", None, 10).is_err());
 }
+
+#[test]
+fn profiles_say_whether_an_account_has_a_feed() {
+    use crate::api::dto::Ctx;
+    let mut state = legion_state();
+    apply(&mut state, block(1, vec![("a.near", Some("legion"), json!({"post/1": {"text": "hi"}}))]));
+    let ctx = Ctx { state: &state, viewer: None, gateway: "https://gw", site_hosts: &[], unfurl: None };
+    let feed = serde_json::to_value(ctx.profile("legion", state.aid("legion"))).unwrap();
+    assert_eq!(feed["has_feed"], true);
+    // Absent, not false, on every other profile.
+    let author = serde_json::to_value(ctx.profile("a.near", state.aid("a.near"))).unwrap();
+    assert!(author.get("has_feed").is_none());
+    // With Legion off there are no feeds at all.
+    let mut off = State::new();
+    off.apply_block(&block(1, vec![("a.near", None, json!({"post/1": {"text": "hi"}}))]));
+    assert!(!off.has_feed("legion"));
+}
+
+#[test]
+fn a_feed_of_only_hidden_posts_has_no_feed() {
+    let mut state = legion_state();
+    apply(&mut state, block(1, vec![("spam.near", Some("legion"), json!({"post/1": {"text": "spam"}}))]));
+    assert!(state.has_feed("legion"));
+    // Denylisted: the feed would show nothing, so the profile says there's no feed.
+    state.set_hidden(&["spam.near".to_string()]);
+    assert!(!state.has_feed("legion"));
+    // Not a member: the same.
+    let mut state = legion_state();
+    state.apply_block(&block(1, vec![("outsider.near", Some("legion"), json!({"post/1": {"text": "hi"}}))]));
+    assert!(state.feed_channel("legion", None, 10).is_empty());
+    assert!(!state.has_feed("legion"));
+}

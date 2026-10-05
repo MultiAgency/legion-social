@@ -80,7 +80,7 @@ type App = web::Data<AppState>;
 
 // ---- helpers ----
 
-struct ApiError(StatusCode, &'static str, String);
+pub(crate) struct ApiError(StatusCode, &'static str, String);
 
 impl ApiError {
     fn bad_request(message: impl Into<String>) -> Self {
@@ -99,9 +99,9 @@ impl From<ApiError> for HttpResponse {
     }
 }
 
-type ApiResult = Result<HttpResponse, ApiError>;
+pub(crate) type ApiResult = Result<HttpResponse, ApiError>;
 
-fn respond(result: ApiResult) -> HttpResponse {
+pub(crate) fn respond(result: ApiResult) -> HttpResponse {
     result.unwrap_or_else(Into::into)
 }
 
@@ -123,7 +123,7 @@ fn to_json<T: Serialize>(value: &T) -> Vec<u8> {
     serde_json::to_vec(value).expect("serializing a response")
 }
 
-fn account_param(account_id: &str) -> Result<&str, ApiError> {
+pub(crate) fn account_param(account_id: &str) -> Result<&str, ApiError> {
     if is_valid_account_id(account_id) {
         Ok(account_id)
     } else {
@@ -145,11 +145,11 @@ pub struct ListQuery {
 }
 
 impl ListQuery {
-    fn limit(&self) -> usize {
+    pub(crate) fn limit(&self) -> usize {
         self.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT)
     }
 
-    fn cursor(&self) -> Result<Option<Seq>, ApiError> {
+    pub(crate) fn cursor(&self) -> Result<Option<Seq>, ApiError> {
         self.cursor
             .as_deref()
             .filter(|c| !c.is_empty())
@@ -182,7 +182,7 @@ fn ctx<'a>(app: &'a AppState, state: &'a State, viewer: Option<Aid>) -> Ctx<'a> 
     }
 }
 
-fn feed_page(app: &AppState, state: &State, q: &ListQuery, entries: Vec<crate::state::query::FeedEntry>) -> Result<HttpResponse, ApiError> {
+pub(crate) fn feed_page(app: &AppState, state: &State, q: &ListQuery, entries: Vec<crate::state::query::FeedEntry>) -> Result<HttpResponse, ApiError> {
     let (private, viewer) = viewer(state, q)?;
     let limit = q.limit();
     let next_cursor = (entries.len() >= limit).then(|| entries.last().map(|e| e.seq().to_string())).flatten();
@@ -438,19 +438,6 @@ pub async fn hashtag(
         let state = app.state.read();
         let entries = feed.hashtag(&state, &tag, q.cursor()?, q.limit()).map_err(ApiError::bad_request)?;
         feed_page(&app, &state, &q, entries)
-    })())
-}
-
-/// A feed page of the entries `list` picks, given the state and the page's cursor and limit.
-pub(crate) fn feed_list(
-    app: &AppState,
-    q: &ListQuery,
-    list: impl FnOnce(&State, Option<Seq>, usize) -> Vec<crate::state::query::FeedEntry>,
-) -> HttpResponse {
-    respond((|| {
-        let state = app.state.read();
-        let entries = list(&state, q.cursor()?, q.limit());
-        feed_page(app, &state, q, entries)
     })())
 }
 
