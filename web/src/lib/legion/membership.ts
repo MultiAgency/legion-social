@@ -27,10 +27,26 @@ export function membershipQuery(account: string) {
   });
 }
 
-/**
- * Whether to show the account as a non-member, whose posts don't appear: Legion is on and it holds
- * no rank. Nothing while loading, on errors, or with Legion off.
- */
-export function showsNonMemberNotice(membership: Membership | null | undefined): boolean {
-  return membership != null && membership.rank === null;
+/** `GET /v1/builders/{account}` (docs/LEGION.md §4.3). */
+export interface BuilderStatus {
+  account_id: string;
+  builder: boolean;
+}
+
+/** Whether the account is a NearBuilders member; null when the server runs without Legion (404). */
+export async function fetchBuilder(account: string, signal?: AbortSignal): Promise<BuilderStatus | null> {
+  try {
+    return await apiFetch<BuilderStatus>(`/v1/builders/${encodeURIComponent(account)}`, { signal });
+  } catch (err) {
+    if (isNotFound(err)) return null;
+    throw err;
+  }
+}
+
+export function builderQuery(account: string) {
+  return queryOptions({
+    queryKey: ["ns", "builder", account] as const,
+    queryFn: ({ signal }) => fetchBuilder(account, signal),
+    staleTime: 5 * 60_000,
+  });
 }

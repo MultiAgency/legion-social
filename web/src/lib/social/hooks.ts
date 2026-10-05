@@ -44,6 +44,7 @@ import {
 import { extractHashtags, extractMentions } from "./text";
 
 import { ownFeed, writeFeed } from "@/lib/legion/feed";
+import { pickedFeedsFor } from "@/lib/legion/home-feeds";
 
 const loadKv = () => import("@/lib/near/kv");
 
@@ -341,6 +342,7 @@ export function useCreatePost() {
       if (!input.replyTo && pending.media.length > 0) {
         feeds.push({ kind: "account", tab: "media", account: a });
       }
+      feeds.push(...pickedFeedsFor(feed, value.text ?? ""));
       for (const spec of feeds) prependToFeed(qc, spec, a, item);
       if (input.replyTo) {
         patchPostEverywhere(qc, input.replyTo.key, (p) => ({

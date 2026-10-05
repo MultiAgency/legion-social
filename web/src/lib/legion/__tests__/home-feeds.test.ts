@@ -1,0 +1,47 @@
+import { describe, expect, it } from "vitest";
+import { destinationFor, hasTag, homeFeedId, pickedFeedPath, pickedFeedsFor, pickedHomeFeed, withTag } from "../home-feeds";
+
+describe("home feeds", () => {
+  it("are picked by ?feed= only with a Legion feed configured", () => {
+    expect(homeFeedId("legion", "legion")).toBe("legion");
+    expect(homeFeedId("agency", "legion")).toBe("agency");
+    expect(homeFeedId("builders", "legion")).toBe("builders");
+    expect(homeFeedId("latest", "legion")).toBe("everyone");
+    expect(homeFeedId(null, "legion")).toBe("everyone");
+    expect(homeFeedId("legion", null)).toBe("everyone");
+    expect(pickedHomeFeed("builders", "legion")).toEqual({ tab: "builders", spec: { kind: "picked", feed: "builders" } });
+    expect(pickedHomeFeed("builders", null)).toBeNull();
+  });
+
+  it("map to their API paths", () => {
+    expect(pickedFeedPath("legion")).toBe("/v1/feed/legion");
+    expect(pickedFeedPath("agency")).toBe("/v1/feed/names/agency");
+    expect(pickedFeedPath("builders")).toBe("/v1/feed/builders");
+  });
+
+  it("name where the post button sends a post", () => {
+    const legion = destinationFor("legion", "legion")!;
+    expect(legion.channel).toBe("legion");
+    expect(legion.audience).toBe(true);
+    expect([legion.label("legion"), legion.label(null)]).toEqual(["Post to members", "Post in public"]);
+    expect(destinationFor("everyone", "legion")!.label(null)).toBe("Post to Everyone");
+    expect(destinationFor("builders", "legion")!.channel).toBeNull();
+    expect(destinationFor("agency", "legion")).toBeNull();
+  });
+});
+
+describe("#legion on public posts", () => {
+  it("is appended once, whatever its case", () => {
+    expect(withTag("city node call", "legion")).toBe("city node call #legion");
+    expect(withTag("call #Legion tonight", "legion")).toBe("call #Legion tonight");
+    expect(withTag("see #legionnaires", "legion")).toBe("see #legionnaires #legion");
+    expect(hasTag("mail@x#legion", "legion")).toBe(false);
+  });
+
+  it("puts a new post on the Legion feed right away when it belongs there", () => {
+    expect(pickedFeedsFor("legion", "hi", "legion")).toEqual([{ kind: "picked", feed: "legion" }]);
+    expect(pickedFeedsFor(null, "hi #legion", "legion")).toEqual([{ kind: "picked", feed: "legion" }]);
+    expect(pickedFeedsFor(null, "hi", "legion")).toEqual([]);
+    expect(pickedFeedsFor("legion", "hi", null)).toEqual([]);
+  });
+});

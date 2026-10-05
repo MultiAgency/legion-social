@@ -1,9 +1,10 @@
 # legion-social
 
-near.social for [NEAR Legion](https://nearlegion.gitbook.io/docs) members: a fork of
-[near-social-kv](https://github.com/evgenykuzyakov/near-social-kv) whose indexer shows only
-Legion members, ranked by their soulbound tokens. Set `LEGION_CONTRACTS` to turn it on
-([`docs/LEGION.md`](docs/LEGION.md)); unset, everything below works as upstream.
+MultiSocial: near.social with feeds, every community its own. A fork of
+[near-social-kv](https://github.com/evgenykuzyakov/near-social-kv) that adds feeds picked by who
+wrote a post (NEAR Legion members, `.agency` names, NearBuilders members), members-only posts, and
+Legion ranks. Set `LEGION_CONTRACTS` to turn it on ([`docs/LEGION.md`](docs/LEGION.md)); unset,
+everything below works as upstream.
 
 # near.social on FastData KV
 

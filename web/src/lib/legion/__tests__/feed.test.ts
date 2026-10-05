@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isAccountId } from "@/lib/social/standard";
-import { configured, feedHref, hashtagChannel, hashtagHref, legionTab, ownFeed, writeFeed } from "../feed";
+import { configured, feedHref, hashtagChannel, hashtagHref, ownFeed, writeFeed } from "../feed";
 import { feedKeyId } from "../feed-keys";
 
 describe("Legion feed", () => {
@@ -9,15 +9,6 @@ describe("Legion feed", () => {
     expect(configured("")).toBeNull();
     expect(configured("not an account")).toBeNull();
     expect(configured(" Feed.NearLegion.near ")).toBe("feed.nearlegion.near");
-  });
-
-  it("adds a Legion home tab only when configured", () => {
-    expect(legionTab("legion", "feed.near")).toEqual({
-      tab: "legion",
-      spec: { kind: "channel", channel: "feed.near" },
-    });
-    expect(legionTab("legion", null)).toBeNull();
-    expect(legionTab("latest", "feed.near")).toBeNull();
   });
 });
 
