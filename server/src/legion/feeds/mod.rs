@@ -183,10 +183,10 @@ impl State {
         result
     }
 
-    /// Whether posts were sent to `account` as a feed (O(1); some may be hidden). Always false
-    /// with Legion off.
+    /// Whether `account`'s feed has a post its feed would show: the first visible one, newest
+    /// first, with the feed's own visibility (denylist, Legion membership). False with Legion off.
     pub fn has_feed(&self, account: &str) -> bool {
-        self.reads_feeds() && self.channels.feeds.contains_key(account)
+        self.reads_feeds() && !self.feed_channel(account, None, 1).is_empty()
     }
 
     /// The channel a post was created in; `None` for a post on `social`.

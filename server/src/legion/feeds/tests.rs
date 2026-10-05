@@ -423,3 +423,18 @@ fn profiles_say_whether_an_account_has_a_feed() {
     off.apply_block(&block(1, vec![("a.near", None, json!({"post/1": {"text": "hi"}}))]));
     assert!(!off.has_feed("legion"));
 }
+
+#[test]
+fn a_feed_of_only_hidden_posts_has_no_feed() {
+    let mut state = legion_state();
+    apply(&mut state, block(1, vec![("spam.near", Some("legion"), json!({"post/1": {"text": "spam"}}))]));
+    assert!(state.has_feed("legion"));
+    // Denylisted: the feed would show nothing, so the profile says there's no feed.
+    state.set_hidden(&["spam.near".to_string()]);
+    assert!(!state.has_feed("legion"));
+    // Not a member: the same.
+    let mut state = legion_state();
+    state.apply_block(&block(1, vec![("outsider.near", Some("legion"), json!({"post/1": {"text": "hi"}}))]));
+    assert!(state.feed_channel("legion", None, 10).is_empty());
+    assert!(!state.has_feed("legion"));
+}
