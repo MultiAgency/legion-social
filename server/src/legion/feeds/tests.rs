@@ -384,7 +384,7 @@ fn a_feed_action_reads_as_empty_to_a_build_without_feeds() {
     let mut state = legion_state();
     state.apply_block(&old);
     assert_eq!(state.counts.posts, 0);
-    // This build replays it as the Legion-only post it is.
+    // This build replays it as the feed-account post it is.
     let mut state = legion_state();
     apply(&mut state, serde_json::from_value(line).unwrap());
     assert_eq!(state.channel_of(pid(&state, "a.near", 1)), Some("legion"));

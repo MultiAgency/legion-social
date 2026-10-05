@@ -7,7 +7,7 @@ import { useAccount } from "@/components/providers/account-provider";
 import { Composer } from "@/components/composer/composer";
 import { Feed } from "@/components/feed/feed";
 import { HomeFeeds } from "@/components/legion/home-feeds";
-import { legionFeed } from "@/lib/legion/feed";
+import { multiFeed } from "@/lib/legion/feed";
 import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import { homeFeed, qk } from "@/lib/api/queries";
 import { siteName } from "@/lib/brand";
@@ -26,7 +26,7 @@ export function HomeFeed() {
   };
 
   // With a Legion feed configured, home has feeds to switch between (docs/LEGION.md §4).
-  if (legionFeed) return <HomeFeeds tab={tab} spec={spec} onActiveClick={refresh} />;
+  if (multiFeed) return <HomeFeeds tab={tab} spec={spec} onActiveClick={refresh} />;
 
   return (
     <>

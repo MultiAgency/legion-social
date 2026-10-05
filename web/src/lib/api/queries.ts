@@ -3,7 +3,7 @@
  * hooks. Using the same builders on both sides guarantees hydration hits the same cache keys.
  */
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import { pickedFeedPath, pickedHomeFeed, type PickedFeedId } from "@/lib/legion/home-feeds";
+import { pickedFeedRequest, pickedHomeFeed, type PickedFeedId } from "@/lib/legion/home-feeds";
 import { api, isNotFound, type ListParams } from "./client";
 import type { AccountCard, FeedItem, Notification, Page } from "./types";
 
@@ -14,8 +14,8 @@ export type FeedSpec =
   | { kind: "for_you" }
   | { kind: "following"; account: string }
   | { kind: "account"; tab: AccountTab; account: string }
-  | { kind: "hashtag"; tag: string; channel?: string | null }
-  | { kind: "picked"; feed: PickedFeedId }
+  | { kind: "hashtag"; tag: string }
+  | { kind: "picked"; feed: PickedFeedId; tag?: string }
   | { kind: "channel"; channel: string }
   | { kind: "search"; q: string }
   | { kind: "replies"; postKey: string }
@@ -105,9 +105,11 @@ export function fetchFeedPage(spec: FeedSpec, p: ListParams): Promise<Page<FeedI
     case "account":
       return ACCOUNT_TAB_FETCHERS[spec.tab](spec.account, params);
     case "hashtag":
-      return api.hashtagFeed(spec.tag, params, spec.channel);
-    case "picked":
-      return api.pickedFeed(pickedFeedPath(spec.feed), params);
+      return api.hashtagFeed(spec.tag, params);
+    case "picked": {
+      const { path, query } = pickedFeedRequest(spec.feed, spec.tag);
+      return api.pickedFeed(path, params, query);
+    }
     case "channel":
       return api.channelFeed(spec.channel, params);
     case "search":

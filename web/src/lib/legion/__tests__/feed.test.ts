@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isAccountId } from "@/lib/social/standard";
-import { configured, feedHref, hashtagChannel, hashtagHref, membersOnly, ownFeed, writeFeed } from "../feed";
+import { configured, feedHref, hashtagHref, ownFeed, writeFeed } from "../feed";
 import { feedKeyId } from "../feed-keys";
 
 describe("Legion feed", () => {
@@ -13,7 +13,7 @@ describe("Legion feed", () => {
 });
 
 describe("writeFeed", () => {
-  it("writes to the configured Legion feed only, else to social", () => {
+  it("writes to the configured Multi feed only, else to social", () => {
     expect(writeFeed("legion", "legion")).toBe("legion");
     expect(writeFeed("other.near", "legion")).toBeNull();
     expect(writeFeed(null, "legion")).toBeNull();
@@ -35,13 +35,8 @@ describe("feed links", () => {
   it("scopes hashtag pages to a feed", () => {
     expect(hashtagHref("near")).toBe("/hashtag/near");
     expect(hashtagHref("near", null)).toBe("/hashtag/near");
-    expect(hashtagHref("near", "feed.near", "legion")).toBe("/hashtag/near?channel=feed.near");
-    // No feeds configured: plain hashtag pages.
-    expect(hashtagHref("near", "feed.near", null)).toBe("/hashtag/near");
-    expect(hashtagChannel("legion", "legion")).toBe("legion");
-    expect(hashtagChannel("legion", null)).toBeNull();
-    expect(hashtagChannel(["legion"], "legion")).toBeNull();
-    expect(hashtagChannel("not an account", "legion")).toBeNull();
+    expect(hashtagHref("near", "multi")).toBe("/hashtag/near?feed=multi");
+    expect(hashtagHref("near", "builders")).toBe("/hashtag/near?feed=builders");
     expect(feedHref("feed.near")).toBe("/feed.near/feed");
   });
 
@@ -53,12 +48,3 @@ describe("feed links", () => {
   });
 });
 
-describe("membersOnly", () => {
-  it("is a post sent to the configured Legion feed account", () => {
-    expect(membersOnly("legion", "legion")).toBe(true);
-    expect(membersOnly("lounge", "lounge")).toBe(true);
-    expect(membersOnly(null, "legion")).toBe(false);
-    expect(membersOnly("other.near", "legion")).toBe(false);
-    expect(membersOnly("legion", null)).toBe(false);
-  });
-});

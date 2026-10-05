@@ -8,19 +8,22 @@ import { Feed } from "@/components/feed/feed";
 import { SignInHero } from "@/components/home/sign-in-hero";
 import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import type { FeedSpec, HomeTab } from "@/lib/api/queries";
-import { destinationFor, HOME_FEEDS, homeFeedId, type HomeFeedId } from "@/lib/legion/home-feeds";
-import { FeedNote, useCanPost } from "./feed-note";
+import { destinationFor, HOME_FEEDS, homeFeedId, type HomeFeedId, type PickedFeedId } from "@/lib/legion/home-feeds";
+import { FeedNote, useEligible } from "./feed-note";
+import { HashtagTab } from "./hashtag-tab";
 
 /**
  * Home with feeds (docs/LEGION.md §4): upstream's own tabs, For you / Following / Latest, are
- * Everyone, unchanged; Legion, .agency and Builders are pinned after them, each with one line on
- * who posts there. The post box shows only to those who can post in the current feed.
+ * Everyone, unchanged; Multi, Legion, .agency and Builders are pinned after them, each with one line
+ * on who posts there. Each tab has one destination: Everyone and Legion post to `social`, Multi to
+ * the Multi feed account, and .agency and Builders have no post box.
  */
 export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: FeedSpec; onActiveClick: () => void }) {
   const { accountId } = useAccount();
   const id: HomeFeedId = homeFeedId(tab);
-  const canPost = useCanPost(id, accountId);
-  const destination = destinationFor(id);
+  const pinned: PickedFeedId | null = id === "everyone" ? null : id;
+  const eligible = useEligible(pinned ?? "legion", pinned ? accountId : null);
+  const destination = pinned && destinationFor(pinned);
   const tabsRef = useRef<HTMLDivElement>(null);
   // Six tabs scroll sideways on a phone, starting at the left: keep the current one in view.
   useEffect(() => {
@@ -43,37 +46,41 @@ export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: Fe
           />
         </div>
       </PageHeader>
-      {id !== "everyone" && <FeedNote id={id} signedIn={!!accountId} canPost={canPost} />}
+      {pinned && <FeedNote id={pinned} signedIn={!!accountId} eligible={eligible} />}
       {!accountId ? (
-        id === "everyone" && <SignInHero />
+        !pinned && <SignInHero />
+      ) : !pinned ? (
+        <Composer variant="inline" />
       ) : (
-        canPost &&
+        eligible &&
         destination && (
           <Composer
             key={id}
             variant="inline"
             destination={destination}
-            placeholder={id === "legion" ? "Say something to the Legion…" : undefined}
+            placeholder={pinned === "legion" ? "Say something to the Legion…" : undefined}
           />
         )
       )}
-      <Feed
-        key={`${tab}:${accountId ?? ""}`}
-        spec={spec}
-        // For you isn't chronological, so "N new posts" doesn't apply there.
-        newPostsPill={tab !== "for_you"}
-        empty={emptyState(id, tab, canPost)}
-      />
+      <HashtagTab.Provider value={pinned}>
+        <Feed
+          key={`${tab}:${accountId ?? ""}`}
+          spec={spec}
+          // For you isn't chronological, so "N new posts" doesn't apply there.
+          newPostsPill={tab !== "for_you"}
+          empty={emptyState(id, tab, eligible)}
+        />
+      </HashtagTab.Provider>
     </>
   );
 }
 
 function emptyState(id: HomeFeedId, tab: HomeTab, canPost: boolean | undefined) {
+  if (id === "multi") {
+    return { title: "Nothing in Multi yet", body: canPost ? "Write the first post. It stays off near.social." : undefined };
+  }
   if (id === "legion") {
-    return {
-      title: "No Legion posts yet",
-      body: canPost ? "Write the first one, for members only or in public." : "Members' posts will show here.",
-    };
+    return { title: "No Legion posts yet", body: canPost ? "Write the first one." : "Members' posts will show here." };
   }
   if (tab === "following") {
     return {

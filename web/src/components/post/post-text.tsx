@@ -5,6 +5,7 @@ import Link from "next/link";
 import { displayUrl, tokenize } from "@/lib/social/text";
 import { cn } from "@/lib/utils";
 import { hashtagHref } from "@/lib/legion/feed";
+import { useHashtagFeed } from "@/components/legion/hashtag-tab";
 import { AccountHoverCard } from "@/components/account/account-hover-card";
 
 const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -20,10 +21,11 @@ export function RichText({
 }: {
   text: string;
   className?: string;
-  /** The post's feed: its hashtags link within it (docs/LEGION.md §3). */
+  /** The post's feed account: its hashtags link within its feed (docs/LEGION.md §4.4). */
   channel?: string | null;
 }) {
   const tokens = React.useMemo(() => tokenize(text), [text]);
+  const feed = useHashtagFeed(channel);
   return (
     <span className={cn("whitespace-pre-wrap break-words [overflow-wrap:anywhere]", className)}>
       {tokens.map((t, i) => {
@@ -56,7 +58,7 @@ export function RichText({
             return (
               <Link prefetch={false}
                 key={i}
-                href={hashtagHref(t.tag, channel)}
+                href={hashtagHref(t.tag, feed)}
                 className="text-link hover:underline"
                 onClick={stop}
               >

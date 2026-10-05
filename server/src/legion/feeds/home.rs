@@ -1,8 +1,7 @@
 //! Home feeds (docs/LEGION.md §4): feeds that pick posts by who wrote them. Everyone is upstream's
 //! global feed; these three are Legion's, served only with Legion on.
 //!
-//! - Legion: members' `social` posts (`?source=members`), and Legion space: members' posts sent to
-//!   the Legion feed account (`?source=space`). Without `source`, both.
+//! - Legion: members' `social` posts (token-gated by author).
 //! - Names: `social` posts by accounts named `*.{tla}`, such as `.agency`.
 //! - Builders: `social` posts by NearBuilders members (`legion::builders`).
 //!
@@ -16,20 +15,6 @@ use actix_web::{web, HttpResponse};
 use serde::Deserialize;
 use serde_json::json;
 
-
-/// Which Legion feed `GET /v1/feed/legion?source=` lists: members' `social` posts (`members`), or
-/// their posts sent to the Legion feed account (`space`). Without it, both.
-#[derive(Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
-#[serde(rename_all = "lowercase")]
-pub enum LegionSource {
-    Members,
-    Space,
-}
-
-#[derive(Deserialize)]
-pub struct SourceQuery {
-    source: Option<LegionSource>,
-}
 
 /// `?tag=`: scopes a feed to one hashtag (with or without `#`, any case).
 #[derive(Deserialize)]
@@ -75,20 +60,9 @@ impl State {
             .collect()
     }
 
-    /// The Legion feed: members' posts sent to the Legion feed account (`LEGION_FEED`), or on
-    /// `social` with #legion.
-    /// `source` picks one of the two: `Members` (Legion: members' `social` posts) or `Space`
-    /// (Legion space: members' posts sent to the Legion feed account); `None` is both.
-    pub fn feed_legion(&self, source: Option<LegionSource>, tag: Option<&str>, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
-        let Some(legion) = self.legion_feed() else { return vec![] };
-        self.home_feed(tag, before, limit, |pid| {
-            self.rank(self.post(pid).key.author).is_some()
-                && match (self.channel_of(pid), source) {
-                    (Some(feed), None | Some(LegionSource::Space)) => feed == legion,
-                    (None, None | Some(LegionSource::Members)) => true,
-                    _ => false,
-                }
-        })
+    /// The Legion feed: members' top-level `social` posts (an account with a rank).
+    pub fn feed_legion(&self, tag: Option<&str>, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
+        self.home_feed(tag, before, limit, |pid| self.on_social(pid) && self.rank(self.post(pid).key.author).is_some())
     }
 
     /// A name feed: `social` posts by accounts named `*.{tla}`.
@@ -117,10 +91,10 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 
 type App = web::Data<AppState>;
 
-async fn legion_feed(app: App, q: web::Query<ListQuery>, t: web::Query<TagQuery>, s: web::Query<SourceQuery>) -> HttpResponse {
+async fn legion_feed(app: App, q: web::Query<ListQuery>, t: web::Query<TagQuery>) -> HttpResponse {
     respond((|| {
         let state = app.state.read();
-        let entries = state.feed_legion(s.source, t.tag().as_deref(), q.cursor()?, q.limit());
+        let entries = state.feed_legion(t.tag().as_deref(), q.cursor()?, q.limit());
         feed_page(&app, &state, &q, entries)
     })())
 }

@@ -344,7 +344,7 @@ export function useCreatePost() {
         feeds.push({ kind: "account", tab: "media", account: a });
       }
       const member = qc.getQueryData(membershipQuery(a).queryKey)?.rank != null;
-      feeds.push(...pickedFeedsFor({ channel: feed, text: value.text ?? "", reply: !!input.replyTo, member }));
+      feeds.push(...pickedFeedsFor({ channel: feed, reply: !!input.replyTo, member }));
       for (const spec of feeds) prependToFeed(qc, spec, a, item);
       if (input.replyTo) {
         patchPostEverywhere(qc, input.replyTo.key, (p) => ({
