@@ -248,6 +248,7 @@ pub fn spawn(state: &Arc<RwLock<State>>, config: &Config) -> Result<()> {
     start(state, &config.data_dir);
     let checker = init_checker(settings, config);
     tokio::spawn(watch(checker, config.data_dir.clone(), state.clone()));
+    builders::spawn();
     Ok(())
 }
 
@@ -518,6 +519,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
     }
 }
 
+pub mod builders;
 pub mod feeds;
 
 #[cfg(test)]

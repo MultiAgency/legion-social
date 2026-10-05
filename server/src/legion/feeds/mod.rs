@@ -43,7 +43,10 @@ impl FeedQuery {
 /// any route upstream doesn't have.
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.route("/v1/feed/channel/{account}", web::get().to(feed_channel));
+    home::routes(cfg);
 }
+
+pub mod home;
 
 /// `GET /v1/feed/channel/{account}`: a feed's posts, newest first.
 async fn feed_channel(app: web::Data<AppState>, path: web::Path<String>, q: web::Query<ListQuery>) -> HttpResponse {
