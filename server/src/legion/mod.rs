@@ -545,5 +545,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.route("/v1/legion/{account}", web::get().to(membership));
 }
 
+pub mod feeds;
+
 #[cfg(test)]
 mod tests;

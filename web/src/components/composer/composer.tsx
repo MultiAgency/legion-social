@@ -12,6 +12,7 @@ import { useAccount } from "@/components/providers/account-provider";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { Button } from "@/components/ui/button";
 import { LegionFeedToggle } from "@/components/legion/legion-feed-toggle";
+import { writeFeed } from "@/lib/legion/feed";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/near/errors";
@@ -170,7 +171,7 @@ export function Composer({
   );
   const [phase, setPhase] = React.useState<null | { label: string }>(null);
   // A reply goes to its parent's feed; a new post to the one chosen (docs/LEGION.md §3).
-  const [channel, setChannel] = React.useState<string | null>(replyTo ? (replyTo.channel ?? null) : initialChannel);
+  const [channel, setChannel] = React.useState<string | null>(writeFeed(replyTo ? replyTo.channel : initialChannel));
   const [expanded, setExpanded] = React.useState(variant !== "reply" || !!autoFocus);
   const [dragging, setDragging] = React.useState(false);
   const [caret, setCaret] = React.useState(0);
@@ -501,7 +502,7 @@ export function Composer({
                 >
                   <ImagePlus className="size-5" />
                 </button>
-                {!edit && !replyTo && <LegionFeedToggle value={channel} onChange={setChannel} disabled={!!phase} />}
+                {!edit && <LegionFeedToggle value={channel} onChange={setChannel} disabled={!!phase} reply={!!replyTo} />}
               </div>
               <div className="flex items-center gap-3">
                 <RemainingRing used={used} />

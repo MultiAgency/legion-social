@@ -21,7 +21,7 @@ import { useAccount } from "@/components/providers/account-provider";
 import { useComposer } from "@/components/composer/composer-provider";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { NameLine } from "@/components/account/names";
-import { ChannelLabel } from "@/components/channels/channel-label";
+import { FeedLabel } from "@/components/legion/feed-label";
 import { AccountHoverCard } from "@/components/account/account-hover-card";
 import { PostLinkEmbed, usePostLink } from "@/components/embeds/post-link-embed";
 import { RelativeTime } from "@/components/common/timestamp";
@@ -262,7 +262,7 @@ export function PostCard({
             </div>
             {!post._pending && <PostMenu post={post} />}
           </div>
-          <ChannelLabel channel={post.channel} />
+          <FeedLabel channel={post.channel} />
           {showReplyContext && <ReplyContext post={post} />}
           {text && <CollapsibleText text={text} channel={post.channel} className="mt-0.5 text-[15px] leading-[1.4]" />}
           {post.media.length > 0 && <PostMediaGrid media={post.media} className="mt-3" />}
@@ -299,7 +299,7 @@ export function FocusedPost({ post, connectTop }: { post: Post; connectTop?: boo
         </div>
         {!post._pending && <PostMenu post={post} />}
       </div>
-      <ChannelLabel channel={post.channel} />
+      <FeedLabel channel={post.channel} />
       {post.reply_to && (
         <div className="mt-3">
           <ReplyContext post={post} />

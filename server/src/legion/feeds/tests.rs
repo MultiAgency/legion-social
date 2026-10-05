@@ -205,3 +205,86 @@ fn trending_counts_social_only() {
     let top = state.trending(T0 + 10_000, 86_400_000, 10);
     assert_eq!(top, vec![("near".to_string(), 1)]);
 }
+
+fn failed(kind: ActionErrorKind) -> ExecutionStatusView {
+    use fastnear_primitives::near_primitives::errors::ActionError;
+    ExecutionStatusView::Failure(TxExecutionError::ActionError(ActionError { index: Some(0), kind }))
+}
+
+fn missing(account: &str) -> ExecutionStatusView {
+    failed(ActionErrorKind::AccountDoesNotExist { account_id: account.parse().unwrap() })
+}
+
+#[test]
+fn only_an_unclaimed_receiver_is_a_feed() {
+    // `legion` doesn't exist: its receipts fail with AccountDoesNotExist.
+    assert_eq!(classify(true, "social", "legion", &missing("legion")), Receiver::Feed("legion".into()));
+    // `social` is read as upstream does, whatever its outcome.
+    assert_eq!(classify(true, "social", "social", &missing("social")), Receiver::Social);
+    assert_eq!(classify(false, "social", "social", &ExecutionStatusView::SuccessValue(vec![])), Receiver::Social);
+    // Existing receivers are other apps': no contract, a missing method, a success.
+    let no_code = failed(ActionErrorKind::FunctionCallError(
+        fastnear_primitives::near_primitives::errors::FunctionCallError::CompilationError(
+            fastnear_primitives::near_primitives::errors::CompilationError::CodeDoesNotExist {
+                account_id: "app.near".parse().unwrap(),
+            },
+        ),
+    ));
+    let no_method = failed(ActionErrorKind::FunctionCallError(
+        fastnear_primitives::near_primitives::errors::FunctionCallError::MethodResolveError(
+            fastnear_primitives::near_primitives::errors::MethodResolveError::MethodNotFound,
+        ),
+    ));
+    for status in [no_code, no_method, ExecutionStatusView::SuccessValue(vec![]), ExecutionStatusView::Unknown] {
+        assert_eq!(classify(true, "social", "app.near", &status), Receiver::Other);
+    }
+    // AccountDoesNotExist for some other account isn't this receiver's.
+    assert_eq!(classify(true, "social", "app.near", &missing("other.near")), Receiver::Other);
+}
+
+#[test]
+fn writes_to_existing_receivers_never_reach_the_state() {
+    // What the tailer does: an `Other` receipt is skipped before parsing, so it neither fixes a
+    // post's feed nor counts toward its author's quota.
+    let mut state = State::new();
+    let writes = [
+        ("app.near", failed(ActionErrorKind::AccountAlreadyExists { account_id: "app.near".parse().unwrap() })),
+        ("legion", missing("legion")),
+    ];
+    let mut actions = vec![];
+    for (i, (receiver, status)) in writes.iter().enumerate() {
+        let args = json!({ "post/1": {"text": format!("to {receiver}")} });
+        let action = parse_action(i as u64, Some(format!("tx-{i}")), "a.near".into(), &serde_json::to_vec(&args).unwrap());
+        if let Receiver::Feed(feed) = classify(true, "social", receiver, status) {
+            actions.extend(channel_action(action, &feed));
+        }
+    }
+    state.apply_block(&LogBlock { b: 1, t: T0 * 1_000_000, a: actions });
+    assert_eq!(text(&state, "a.near", 1).as_deref(), Some("to legion"));
+    assert_eq!(state.channel_of(pid(&state, "a.near", 1)), Some("legion"));
+    assert_eq!(state.counts.posts, 1);
+    assert!(!state.txs.contains_key("tx-0"));
+}
+
+#[test]
+fn legion_off_reads_social_only_and_matches_upstream() {
+    // Feeds are off: an unclaimed receiver is skipped like any other.
+    assert_eq!(classify(false, "social", "legion", &missing("legion")), Receiver::Other);
+    // So only social writes reach the state, and every read is upstream's.
+    let mut state = State::new();
+    assert!(state.legion.is_none());
+    state.apply_block(&block(
+        1,
+        vec![
+            ("a.near", None, json!({"post/1": {"text": "hello #near"}})),
+            ("b.near", None, json!({"post/2": {"text": "reply #near", "reply_to": "a.near/1"}})),
+        ],
+    ));
+    let p = pid(&state, "a.near", 1);
+    assert_eq!(state.channel_of(p), None);
+    assert!(state.on_social(p));
+    assert_eq!(texts(&state, state.feed_global(None, 10)), vec!["hello #near"]);
+    assert_eq!(texts(&state, state.hashtag_feed("near", None, None, 10)), vec!["reply #near", "hello #near"]);
+    assert_eq!(state.trending(T0 + 10_000, 86_400_000, 10), vec![("near".to_string(), 2)]);
+    assert!(state.feed_channel("legion", None, 10).is_empty());
+}

@@ -431,7 +431,7 @@ pub async fn hashtag(
     app: App,
     path: web::Path<String>,
     q: web::Query<ListQuery>,
-    feed: web::Query<crate::channels::FeedQuery>,
+    feed: web::Query<crate::legion::feeds::FeedQuery>,
 ) -> HttpResponse {
     respond((|| {
         let tag = path.trim_start_matches('#').to_lowercase();

@@ -5,19 +5,30 @@ import { legionFeed } from "@/lib/legion/feed";
 import { cn } from "@/lib/utils";
 
 /**
- * "Everyone" or "Legion only" for a new post (docs/LEGION.md §3). `value` is the channel: `null` is
- * `social`. Shows nothing when no Legion feed is configured.
+ * "Everyone" or "Legion only" for a new post (docs/LEGION.md §3). `value` is the feed: `null` is
+ * `social`. A reply goes where its parent is, so it shows that instead of a choice. Shows nothing
+ * when no Legion feed is configured.
  */
 export function LegionFeedToggle({
   value,
   onChange,
   disabled,
+  reply,
 }: {
   value: string | null;
   onChange: (channel: string | null) => void;
   disabled?: boolean;
+  reply?: boolean;
 }) {
   if (!legionFeed) return null;
+  if (reply) {
+    return value ? (
+      <span className="ml-1 inline-flex items-center gap-1 text-xs font-medium text-link">
+        <ShieldCheck className="size-3.5" aria-hidden />
+        Replying in Legion only
+      </span>
+    ) : null;
+  }
   const options = [
     { channel: null, label: "Everyone", icon: Globe },
     { channel: legionFeed, label: "Legion only", icon: ShieldCheck },

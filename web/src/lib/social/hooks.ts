@@ -43,6 +43,8 @@ import {
 } from "./standard";
 import { extractHashtags, extractMentions } from "./text";
 
+import { writeFeed } from "@/lib/legion/feed";
+
 const loadKv = () => import("@/lib/near/kv");
 
 /* ------------------------------------------------------------------------------------------ */
@@ -288,6 +290,7 @@ export function useCreatePost() {
       validateKvArgs(data, a); // throws before anything is shown or sent
       const key = `${a}/${postId}`;
       const value = data[keys.post(postId)] as PostValue;
+      const feed = writeFeed(input.channel);
 
       const pending: Post = {
         key,
@@ -307,7 +310,7 @@ export function useCreatePost() {
         hashtags: extractHashtags(value.text ?? ""),
         counts: { replies: 0, reposts: 0, likes: 0, quotes: 0 },
         viewer: { liked: false, reposted: false },
-        channel: input.channel ?? null,
+        channel: feed,
         _pending: true,
       };
       const item: FeedItem = {
@@ -323,9 +326,9 @@ export function useCreatePost() {
             { kind: "replies", postKey: input.replyTo.key },
             { kind: "account", tab: "replies", account: a },
           ]
-        : input.channel
+        : feed
           ? [
-              { kind: "channel", channel: input.channel },
+              { kind: "channel", channel: feed },
               { kind: "account", tab: "posts", account: a },
             ]
           : [
@@ -370,7 +373,7 @@ export function useCreatePost() {
 
       let hash: string;
       try {
-        hash = await writeKv(a, data, { channel: input.channel });
+        hash = await writeKv(a, data, { channel: feed });
       } catch (err) {
         rollback();
         throw err;
@@ -438,7 +441,7 @@ export function useEditPost() {
       });
       let hash: string;
       try {
-        hash = await writeKv(accountId, data, { channel: post.channel });
+        hash = await writeKv(accountId, data, { channel: writeFeed(post.channel) });
       } catch (err) {
         patchPostEverywhere(qc, post.key, restore);
         throw err;
@@ -471,7 +474,7 @@ export function useDeletePost() {
       }
       try {
         const { writeKv } = await loadKv();
-        const hash = await writeKv(accountId, data, { channel: post.channel });
+        const hash = await writeKv(accountId, data, { channel: writeFeed(post.channel) });
         toast.success("Post deleted", {
           description: "Earlier versions stay in the public FastData history.",
         });

@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, Link2, MapPin } from "lucide-react";
 import { useAccount } from "@/components/providers/account-provider";
 import { profileQuery } from "@/lib/api/queries";
-import { useFeedTab } from "@/components/channels/feed-tab";
+import { useFeedTab } from "@/components/legion/feed-tab";
 import { isNotFound } from "@/lib/api/client";
 import { isGatewayUrl, UserAvatar } from "@/components/account/user-avatar";
 import { FollowButton } from "@/components/account/follow-button";

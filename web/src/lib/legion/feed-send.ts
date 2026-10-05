@@ -1,7 +1,7 @@
 /**
- * Writes to a channel: the same `__fastdata_kv` call as to `social`, sent to the channel account
- * and signed with a posting key for that receiver. A function-call key names one receiver, so each
- * channel has its own key, added with one wallet approval the first time (docs/LEGION.md §3 §1).
+ * Writes to a feed: the same `__fastdata_kv` call as to `social`, sent to the feed account and
+ * signed with a posting key for that receiver. A function-call key names one receiver, so each feed
+ * has its own key, added with one wallet approval the first time (docs/LEGION.md §3).
  */
 import type { KeyPair, KeyPairString } from "@near-js/crypto";
 import { SigningError } from "@/lib/near/errors";
@@ -54,6 +54,7 @@ export async function channelKey(accountId: string, channel: string): Promise<Ke
     const { KeyPair } = await loadCrypto();
     const secret = KeyPair.fromRandom("ed25519").toString();
     try {
+      // Stored like upstream's posting key (keystore.ts): a function-call key that can't move funds.
       window.localStorage.setItem(slot, secret);
     } catch {
       throw new SigningError("no_local_key", "This browser can't store a posting key.");

@@ -1,20 +1,19 @@
 import Link from "next/link";
 import { Hash, ShieldCheck } from "lucide-react";
-import { channelHref } from "@/lib/channels/links";
-import { legionFeed } from "@/lib/legion/feed";
+import { feedHref, legionFeed } from "@/lib/legion/feed";
 
-/** A feed's name: "Legion only" for the Legion feed, else "@channel". */
+/** A feed's name: "Legion only" for the Legion feed, else "@account". */
 export function feedName(channel: string): string {
   return channel === legionFeed ? "Legion only" : `@${channel}`;
 }
 
-/** The small line on a channel post: "Legion only" for the Legion feed, else "in @channel". */
-export function ChannelLabel({ channel }: { channel: string | null | undefined }) {
+/** The small line on a feed post: "Legion only" for the Legion feed, else "in @account". */
+export function FeedLabel({ channel }: { channel: string | null | undefined }) {
   if (!channel) return null;
   const legion = channel === legionFeed;
   return (
     <Link
-      href={channelHref(channel)}
+      href={feedHref(channel)}
       onClick={(e) => e.stopPropagation()}
       className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-link hover:underline"
     >

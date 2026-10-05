@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { displayUrl, tokenize } from "@/lib/social/text";
 import { cn } from "@/lib/utils";
-import { hashtagHref } from "@/lib/channels/links";
+import { hashtagHref } from "@/lib/legion/feed";
 import { AccountHoverCard } from "@/components/account/account-hover-card";
 
 const stop = (e: React.MouseEvent) => e.stopPropagation();

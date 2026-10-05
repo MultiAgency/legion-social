@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { configured, legionTab } from "../feed";
-import { hashtagHref, channelHref } from "@/lib/channels/links";
-import { channelKeySlot } from "@/lib/channels/send";
+import { configured, feedHref, hashtagHref, legionTab, writeFeed } from "../feed";
+import { channelKeySlot } from "../feed-send";
 
 describe("Legion feed", () => {
   it("is configured only by a valid account", () => {
@@ -21,12 +20,22 @@ describe("Legion feed", () => {
   });
 });
 
-describe("channel links", () => {
+describe("writeFeed", () => {
+  it("writes to the configured Legion feed only, else to social", () => {
+    expect(writeFeed("legion", "legion")).toBe("legion");
+    expect(writeFeed("other.near", "legion")).toBeNull();
+    expect(writeFeed(null, "legion")).toBeNull();
+    expect(writeFeed(undefined, "legion")).toBeNull();
+    expect(writeFeed("legion", null)).toBeNull();
+  });
+});
+
+describe("feed links", () => {
   it("scopes hashtag pages to a feed", () => {
     expect(hashtagHref("near")).toBe("/hashtag/near");
     expect(hashtagHref("near", null)).toBe("/hashtag/near");
     expect(hashtagHref("near", "feed.near")).toBe("/hashtag/near?channel=feed.near");
-    expect(channelHref("feed.near")).toBe("/feed.near/feed");
+    expect(feedHref("feed.near")).toBe("/feed.near/feed");
   });
 
   it("keeps channel keys apart from the social posting key", () => {

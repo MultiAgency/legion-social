@@ -1,11 +1,15 @@
-//! Channels (`docs/LEGION.md §3`): posts written to any account instead of `social`.
+//! Feeds (docs/LEGION.md §3): posts written to an unclaimed top-level name instead of `social`.
 //!
-//! The tailer keeps the post rows of `__fastdata_kv` actions sent to other receivers and tags
-//! them with their channel (`LogAction::c`). The first write of an author's `post/{id}` fixes its
-//! channel; global and For You stay `social`-only; `GET /v1/feed/channel/{account}` lists a
-//! channel. With no channel writes, everything behaves exactly as upstream.
+//! With Legion on, the tailer keeps the post rows of `__fastdata_kv` actions whose receipt failed
+//! with `AccountDoesNotExist` for their receiver, and tags them with that feed (`LogAction::c`).
+//! Writes to existing accounts are other apps' and are never read. The first write of an author's
+//! `post/{id}` fixes its feed; global, For You and trending stay `social`-only;
+//! `GET /v1/feed/channel/{account}` lists a feed. With Legion off, or with no feed writes,
+//! everything behaves exactly as upstream.
 
 use crate::ingest::fastdata::{ActionStatus, LogAction};
+use fastnear_primitives::near_primitives::errors::{ActionErrorKind, TxExecutionError};
+use fastnear_primitives::near_primitives::views::ExecutionStatusView;
 use crate::model::account_id::is_valid_account_id;
 use crate::model::keys::{parse_key, Key};
 use crate::state::query::FeedEntry;
@@ -34,6 +38,36 @@ pub struct Channels {
     by_post: FxHashMap<Pid, Box<str>>,
     /// Each channel's posts, in creation order.
     feeds: FxHashMap<Box<str>, Vec<(Seq, Pid)>>,
+}
+
+/// Where a receipt's `__fastdata_kv` writes go.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Receiver {
+    /// The social account: indexed as upstream does.
+    Social,
+    /// A feed: an unclaimed name, whose receipt failed with `AccountDoesNotExist`.
+    Feed(String),
+    /// Anything else (an existing account, or feeds while Legion is off): not read.
+    Other,
+}
+
+/// Classifies a receipt by its receiver and its outcome. Deterministic from chain data, so a replay
+/// classifies the same way. A receiver that exists (with or without a contract) is never a feed,
+/// so other apps' FastData writes can't fix a post's feed or use anyone's quota, and if a feed's
+/// name is ever claimed, its writes stop being read.
+pub fn classify(feeds_on: bool, social: &str, receiver: &str, status: &ExecutionStatusView) -> Receiver {
+    if receiver == social {
+        return Receiver::Social;
+    }
+    match status {
+        ExecutionStatusView::Failure(TxExecutionError::ActionError(e))
+            if feeds_on
+                && matches!(&e.kind, ActionErrorKind::AccountDoesNotExist { account_id } if account_id.as_str() == receiver) =>
+        {
+            Receiver::Feed(receiver.to_string())
+        }
+        _ => Receiver::Other,
+    }
 }
 
 /// Keys a channel keeps: posts and their reply backlinks (social-kv/1 §3.2–3.3).

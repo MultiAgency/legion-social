@@ -141,7 +141,8 @@ pub struct PostDto<'a> {
     pub quote: Option<QuoteDto<'a>>,
     pub mentions: Vec<&'a str>,
     pub hashtags: Vec<&'a str>,
-    /// The channel the post was written to; `None` on `social` (docs/LEGION.md §3).
+    /// The feed the post was written to; absent on `social` (docs/LEGION.md §3).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub channel: Option<&'a str>,
     pub counts: PostCounts,
     #[serde(skip_serializing_if = "Option::is_none")]

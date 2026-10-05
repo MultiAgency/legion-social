@@ -7,7 +7,7 @@
 import { hasLoneSurrogate, LIMITS, validateEntry } from "@/lib/social/standard";
 import { SigningError } from "./errors";
 import { sendSocialCall, type SendOptions } from "./queue";
-import { sendChannelCall } from "@/lib/channels/send";
+import { sendChannelCall } from "@/lib/legion/feed-send";
 
 export interface WriteOptions extends SendOptions {
   /** Write to this channel account instead of `social` (docs/LEGION.md §3). */

@@ -19,3 +19,23 @@ export function legionTab(
 ): { tab: "legion"; spec: FeedSpec } | null {
   return feed === "legion" && account ? { tab: "legion", spec: { kind: "channel", channel: account } } : null;
 }
+
+/**
+ * The feed a write goes to: the configured Legion feed, and nothing else. A post the server says
+ * is in some other feed is written to `social` instead, so a reply or edit never lands silently
+ * on an account this site didn't choose.
+ */
+export function writeFeed(channel: string | null | undefined, account: string | null = legionFeed): string | null {
+  return channel && channel === account ? channel : null;
+}
+
+/** A hashtag's page within one feed: `social` (`null`) or a feed account. */
+export function hashtagHref(tag: string, channel?: string | null): string {
+  const path = `/hashtag/${encodeURIComponent(tag)}`;
+  return channel ? `${path}?channel=${encodeURIComponent(channel)}` : path;
+}
+
+/** A feed's page: the Feed tab of the account that receives it. */
+export function feedHref(account: string): string {
+  return `/${encodeURIComponent(account)}/feed`;
+}

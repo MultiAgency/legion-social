@@ -304,7 +304,7 @@ pub struct State {
     /// NEAR Legion membership (read-time filter); `None` with Legion off.
     pub legion: Option<crate::legion::Members>,
     /// Posts written to accounts other than `social` (docs/LEGION.md §3).
-    pub channels: crate::channels::Channels,
+    pub channels: crate::legion::feeds::Channels,
     /// (block height, block ms) of every block with rows, to date any seq.
     pub block_times: Vec<(u64, u64)>,
     pub last_block_height: u64,
