@@ -29,7 +29,9 @@ export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: Fe
         <HeaderTabs
           replace
           onActiveClick={onActiveClick}
-          tabs={HOME_FEEDS.map((f) => ({ href: f.id === "everyone" ? "/" : `/?feed=${f.id}`, label: f.label, active: f.id === id }))}
+          // Clicking the feed you're on refreshes it, as upstream's tabs do; Everyone's link keeps the
+          // current order, which the pills below change.
+          tabs={HOME_FEEDS.map((f) => ({ href: f.id === "everyone" ? everyoneHref(tab) : `/?feed=${f.id}`, label: f.label, active: f.id === id }))}
         />
         {id === "everyone" && (
           <FeedOrder
@@ -66,6 +68,11 @@ export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: Fe
       />
     </>
   );
+}
+
+/** Everyone's link: the current order when it's one of Everyone's, else For you. */
+function everyoneHref(tab: HomeTab): string {
+  return tab === "following" || tab === "latest" ? `/?feed=${tab}` : "/";
 }
 
 function emptyState(id: HomeFeedId, tab: HomeTab, canPost: boolean | undefined) {
