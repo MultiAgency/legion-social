@@ -15,4 +15,4 @@ export function LegionMark({ className }: { className?: string }) {
 }
 
 /** The same mark as a standalone SVG document, for the browser tab icon. */
-export const LEGION_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="#0f1a14"/><path d="${LEGION_KNOT}" fill="#82f399"/></svg>`;
+export const LEGION_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="#0f1a14"/><rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="none" stroke="#82f399" stroke-opacity="0.25"/><path d="${LEGION_KNOT}" fill="#82f399"/></svg>`;
