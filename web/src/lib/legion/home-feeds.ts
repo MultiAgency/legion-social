@@ -26,7 +26,7 @@ export const HOME_FEEDS: HomeFeedInfo[] = [
   {
     id: "multi",
     label: "Multi",
-    note: "MultiSocial's own feed, open to everyone. Posts here are public, but stay off near.social.",
+    note: "An experiment: MultiSocial's own feed, open to everyone. Posts here are public, but stay off near.social.",
   },
   {
     id: "legion",
