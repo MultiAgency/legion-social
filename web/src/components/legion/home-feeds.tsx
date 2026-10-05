@@ -5,12 +5,11 @@ import { useAccount } from "@/components/providers/account-provider";
 import { Composer } from "@/components/composer/composer";
 import { Feed } from "@/components/feed/feed";
 import { SignInHero } from "@/components/home/sign-in-hero";
-import { PageHeader } from "@/components/shell/page-header";
+import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import type { FeedSpec, HomeTab } from "@/lib/api/queries";
-import { destinationFor, homeFeedId, type HomeFeedId } from "@/lib/legion/home-feeds";
+import { destinationFor, HOME_FEEDS, homeFeedId, type HomeFeedId } from "@/lib/legion/home-feeds";
 import { FeedAbout, useCanPost } from "./feed-about";
 import { FeedOrder } from "./feed-order";
-import { FeedSwitcher } from "./feed-switcher";
 
 /**
  * Home with feeds to switch between (docs/LEGION.md §4): Everyone keeps upstream's For you /
@@ -26,7 +25,12 @@ export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: Fe
   return (
     <>
       <PageHeader title="Home" brandOnMobile>
-        <FeedSwitcher current={id} />
+        {/* The feeds are home's main navigation, so they use upstream's own header tabs. */}
+        <HeaderTabs
+          replace
+          onActiveClick={onActiveClick}
+          tabs={HOME_FEEDS.map((f) => ({ href: f.id === "everyone" ? "/" : `/?feed=${f.id}`, label: f.label, active: f.id === id }))}
+        />
         {id === "everyone" && (
           <FeedOrder
             onActiveClick={onActiveClick}

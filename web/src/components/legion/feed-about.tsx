@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { builderQuery, membershipQuery } from "@/lib/legion/membership";
 import { HOME_FEEDS, NAME_SUFFIX, type HomeFeedId } from "@/lib/legion/home-feeds";
-import { FeedIcon } from "./feed-switcher";
+import { FeedIcon } from "./feed-icon";
 
 /**
  * Whether the signed-in account may post in a home feed: Everyone, anyone signed in; Legion, a
