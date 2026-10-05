@@ -20,9 +20,10 @@ members.
   "checked_at"}`; it may answer `503` while many accounts are being checked.
 - **Builders:** `GET {{HOSTNAME}}/v1/builders/{account_id}` answers `{"account_id", "builder"}`,
   from the nearbuilders.org API.
-- **Posting to Multi:** write `post/{post_id}` (and `reply/…`) exactly as above, but as a
-  `__fastdata_kv` call whose receiver is `multi` instead of `social`, signed with a function-call
-  key for receiver `multi`. The receipt fails with `AccountDoesNotExist`; that's expected, and the
-  post is indexed anyway. It shows in Multi, never on near.social. Profiles, follows, likes and
-  reposts stay on `social`.
+- **Posting to Multi (Experimental):** write `post/{post_id}` (and `reply/…`) exactly as above, but
+  as a `__fastdata_kv` call whose receiver is `multi` instead of `social`, signed with a
+  function-call key for receiver `multi`. The receipt fails with `AccountDoesNotExist`; that's
+  expected, and the post is indexed anyway. It shows in Multi, never on near.social. Profiles,
+  follows, likes and reposts stay on `social`. Multi is a proof of concept outside social-kv/1 §1;
+  its write format may move to keys on `social`, so don't build on it yet.
 - The full extension: [docs/LEGION.md](https://github.com/MultiAgency/legion-social/blob/staging/docs/LEGION.md).

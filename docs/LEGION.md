@@ -76,6 +76,10 @@ chain data like any other, readable by anyone through FastData.
 The web names it in `NEXT_PUBLIC_MULTI_FEED`; the server needs no setting, since it reads every
 feed account the same way.
 
+Multi is a proof of concept outside social-kv/1 §1 ("Every write goes to this account"), kept
+until upstream decides how feeds kept off near.social should work; its write format may move to a
+`feed/` key namespace on `social`.
+
 A feed account is an account that doesn't exist (an unclaimed name), such as `multi`: nobody owns
 it, like `social`. Because the account doesn't exist, every receipt sent to it fails on chain with
 `AccountDoesNotExist`. That's expected: FastData indexes the call's arguments whatever the
