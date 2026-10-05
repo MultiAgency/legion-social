@@ -17,8 +17,8 @@ export interface HomeFeedInfo {
   label: string;
   /** One line under the tabs: who posts here, and where it shows. */
   note: string;
-  /** How to become able to post here, for a signed-in account that can't. */
-  howTo: { text: string; href?: string; link?: string };
+  /** How to become able to post here, for a signed-in account that can't (none where nobody can). */
+  howTo?: { text: string; href?: string; link?: string };
 }
 
 /** The feeds pinned after upstream's own tabs (For you, Following, Latest), which are Everyone. */
@@ -26,14 +26,14 @@ export const HOME_FEEDS: HomeFeedInfo[] = [
   {
     id: "legion",
     label: "Legion",
-    note: "Posts by Legion token holders. Legion-only posts don't appear on near.social.",
+    note: "Posts by Legion token holders. Legion-only posts are public, but don't appear on near.social.",
     howTo: { text: "To post, mint an Initiate token at", href: "https://nearlegion.com/mint", link: "nearlegion.com/mint" },
   },
   {
     id: "agency",
     label: ".agency",
-    note: "Posts by .agency names, people and agents.",
-    howTo: { text: "Only .agency names can post here." },
+    // .agency names hold no keys, so nobody posts here from this site: their owners post as them.
+    note: "Posts by .agency names, people and agents. They post from their owner's account, not from this site.",
   },
   {
     id: "builders",

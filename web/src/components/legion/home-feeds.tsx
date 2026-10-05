@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useAccount } from "@/components/providers/account-provider";
 import { Composer } from "@/components/composer/composer";
@@ -20,20 +21,27 @@ export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: Fe
   const id: HomeFeedId = homeFeedId(tab);
   const canPost = useCanPost(id, accountId);
   const destination = destinationFor(id);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  // Six tabs scroll sideways on a phone, starting at the left: keep the current one in view.
+  useEffect(() => {
+    tabsRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab]);
 
   return (
     <>
       <PageHeader title="Home" brandOnMobile>
-        <HeaderTabs
-          replace
-          onActiveClick={onActiveClick}
-          tabs={[
-            { href: "/", label: "For you", active: tab === "for_you" },
-            ...(accountId ? [{ href: "/?feed=following", label: "Following", active: tab === "following" }] : []),
-            { href: "/?feed=latest", label: "Latest", active: tab === "latest" },
-            ...HOME_FEEDS.map((f) => ({ href: `/?feed=${f.id}`, label: f.label, active: f.id === id })),
-          ]}
-        />
+        <div ref={tabsRef}>
+          <HeaderTabs
+            replace
+            onActiveClick={onActiveClick}
+            tabs={[
+              { href: "/", label: "For you", active: tab === "for_you" },
+              ...(accountId ? [{ href: "/?feed=following", label: "Following", active: tab === "following" }] : []),
+              { href: "/?feed=latest", label: "Latest", active: tab === "latest" },
+              ...HOME_FEEDS.map((f) => ({ href: `/?feed=${f.id}`, label: f.label, active: f.id === id })),
+            ]}
+          />
+        </div>
       </PageHeader>
       {id !== "everyone" && <FeedNote id={id} signedIn={!!accountId} canPost={canPost} />}
       {!accountId ? (

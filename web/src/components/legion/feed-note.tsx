@@ -34,7 +34,7 @@ export function FeedNote({ id, signedIn, canPost }: { id: PickedFeedId; signedIn
   return (
     <p aria-live="polite" className="border-b px-4 py-3 text-[15px] leading-snug text-muted-foreground">
       {feed.note}
-      {signedIn && canPost === false && (
+      {signedIn && canPost === false && feed.howTo && (
         <>
           {" "}
           {feed.howTo.text}
