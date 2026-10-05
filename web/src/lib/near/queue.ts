@@ -122,6 +122,9 @@ async function nextNonce(accountId: string, keyPair: KeyPair, refresh: boolean):
 export interface SendOptions {
   /** Called right after the transaction is signed (before broadcast). */
   onSigned?: (hash: string) => void;
+  /** A channel's receiver and key instead of `social` and the app key (docs/LEGION.md §3). */
+  receiverId?: string;
+  keyPair?: KeyPair;
 }
 
 /**
@@ -138,7 +141,7 @@ export function sendSocialCall(
   opts: SendOptions = {},
 ): Promise<string> {
   return enqueue(accountId, async () => {
-    const keyPair = await getKeyPair(accountId);
+    const keyPair = opts.keyPair ?? (await getKeyPair(accountId));
     if (!keyPair) {
       throw new SigningError("no_local_key", "Enable posting to write from this browser.");
     }
@@ -157,6 +160,7 @@ export function sendSocialCall(
         blockHash,
         methodName,
         args,
+        receiverId: opts.receiverId,
       });
       opts.onSigned?.(signed.hash);
       try {

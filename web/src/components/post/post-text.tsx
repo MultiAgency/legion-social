@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { displayUrl, tokenize } from "@/lib/social/text";
 import { cn } from "@/lib/utils";
+import { hashtagHref } from "@/lib/channels/links";
 import { AccountHoverCard } from "@/components/account/account-hover-card";
 
 const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -12,7 +13,16 @@ const stop = (e: React.MouseEvent) => e.stopPropagation();
  * Renders plain text (STANDARD.md §5) as React text nodes: URLs, @mentions and #hashtags become
  * links; everything else stays text. Never uses dangerouslySetInnerHTML.
  */
-export function RichText({ text, className }: { text: string; className?: string }) {
+export function RichText({
+  text,
+  className,
+  channel,
+}: {
+  text: string;
+  className?: string;
+  /** The post's feed: its hashtags link within it (docs/LEGION.md §3). */
+  channel?: string | null;
+}) {
   const tokens = React.useMemo(() => tokenize(text), [text]);
   return (
     <span className={cn("whitespace-pre-wrap break-words [overflow-wrap:anywhere]", className)}>
@@ -46,7 +56,7 @@ export function RichText({ text, className }: { text: string; className?: string
             return (
               <Link prefetch={false}
                 key={i}
-                href={`/hashtag/${encodeURIComponent(t.tag)}`}
+                href={hashtagHref(t.tag, channel)}
                 className="text-link hover:underline"
                 onClick={stop}
               >
@@ -64,10 +74,12 @@ export function CollapsibleText({
   text,
   className,
   lines = 8,
+  channel,
 }: {
   text: string;
   className?: string;
   lines?: number;
+  channel?: string | null;
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = React.useState(false);
@@ -90,7 +102,7 @@ export function CollapsibleText({
         className={cn(!expanded && "overflow-hidden")}
         style={!expanded ? { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines } : undefined}
       >
-        <RichText text={text} />
+        <RichText text={text} channel={channel} />
       </div>
       {overflowing && !expanded && (
         <button

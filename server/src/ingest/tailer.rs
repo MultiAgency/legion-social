@@ -77,9 +77,9 @@ pub async fn run(
             // Enumerate every outcome (not just ours) so order_id matches FastData's.
             for (receipt_index, outcome) in shard.receipt_execution_outcomes.into_iter().enumerate() {
                 let receipt = outcome.receipt;
-                if receipt.receiver_id.as_str() != config.social_account_id {
-                    continue;
-                }
+                // Any other receiver is a channel (docs/LEGION.md §3).
+                let channel = (receipt.receiver_id.as_str() != config.social_account_id)
+                    .then(|| receipt.receiver_id.to_string());
                 let ReceiptEnumView::Action { actions: receipt_actions, .. } = receipt.receipt else {
                     continue;
                 };
@@ -87,13 +87,17 @@ pub async fn run(
                     if let ActionView::FunctionCall { method_name, args, .. } = action {
                         let order_id = compute_order_id(shard_id, receipt_index as u64, action_index as u64);
                         if method_name == KV_METHOD {
-                            actions.push(parse_action(
+                            let action = parse_action(
                                 order_id,
                                 outcome.tx_hash.map(|h| h.to_string()),
                                 receipt.predecessor_id.to_string(),
                                 &args,
-                            ));
-                        } else if method_name == FASTFS_METHOD {
+                            );
+                            match &channel {
+                                None => actions.push(action),
+                                Some(c) => actions.extend(crate::channels::channel_action(action, c)),
+                            }
+                        } else if method_name == FASTFS_METHOD && channel.is_none() {
                             uploads.push(Upload {
                                 order_id,
                                 tx: outcome.tx_hash.map(|h| h.to_string()),

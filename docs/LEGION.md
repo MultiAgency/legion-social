@@ -59,3 +59,30 @@ Example: `{"legion/skill/builder": {}, "legion/skill/connector": {}}`
 ### 2.2 Reserved
 
 Every other key under `legion/` is reserved for later versions of this document.
+
+## 3. Legion-only feed
+
+A member can post to Legion only. The post is written exactly as a social-kv/1 post or reply
+(`docs/STANDARD.md` §3.2–3.3), but as a `__fastdata_kv` call to **the Legion feed account
+(configured; TBD)** instead of `social`.
+
+- **Only posts move.** Profiles, follows, likes and reposts stay on `social`. In a feed account,
+  only `post/{post_id}` and `reply/…` keys count; every other key sent there is ignored. Media
+  stays on `social` (social-kv/1 §4).
+- **The first write fixes a post's feed.** A post is still referenced as
+  `"{account_id}/{post_id}"`, so likes, reposts, quotes and replies on `social` can point at it.
+  A later write of the same `post/{post_id}` to a different receiver is ignored; edits and
+  deletes go to the post's own feed.
+- **Legion-only posts appear only on Legion Social.** near.social reads only `social`, so it never
+  shows them. Here they're in the Legion tab (`GET /v1/feed/channel/{account_id}`), their author's
+  profile and threads, and not in Latest or For you.
+- **Hashtags are per feed.** `GET /v1/hashtags/{tag}?channel={account_id}` lists a tag within one
+  feed; without `channel` it lists `social` only, as before. Trending counts `social` only.
+- **Other feeds work the same way.** The indexer reads valid post and reply writes sent to any
+  account, so any account can be a feed of its own (`/c/{account_id}` on the web).
+- **Limits count across feeds.** The per-account daily limits (social-kv/1 §6) cover every feed
+  together.
+- **Writing needs one more key.** A function-call access key names one receiver, so posting to
+  the Legion feed needs a key for that account (method `__fastdata_kv`), approved once.
+- **The feed account should have no contract,** like `social`, and should be owned by NEAR Legion,
+  so nothing can run on the posts sent to it.

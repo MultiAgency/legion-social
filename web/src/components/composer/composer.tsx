@@ -11,6 +11,7 @@ import type { AccountCard, Post } from "@/lib/api/types";
 import { useAccount } from "@/components/providers/account-provider";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { Button } from "@/components/ui/button";
+import { LegionFeedToggle } from "@/components/legion/legion-feed-toggle";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/near/errors";
@@ -43,6 +44,8 @@ export interface ComposerProps {
   placeholder?: string;
   onDone?: () => void;
   className?: string;
+  /** The feed a new post starts in: a channel account, or `social` (docs/LEGION.md §3). */
+  channel?: string | null;
 }
 
 let draftSeq = 0;
@@ -144,6 +147,7 @@ export function Composer({
   placeholder,
   onDone,
   className,
+  channel: initialChannel = null,
 }: ComposerProps) {
   const { accountId, canWrite, requireKey, enablePosting, busy } = useAccount();
   const createPost = useCreatePost();
@@ -165,6 +169,8 @@ export function Composer({
     })),
   );
   const [phase, setPhase] = React.useState<null | { label: string }>(null);
+  // A reply goes to its parent's feed; a new post to the one chosen (docs/LEGION.md §3).
+  const [channel, setChannel] = React.useState<string | null>(replyTo ? (replyTo.channel ?? null) : initialChannel);
   const [expanded, setExpanded] = React.useState(variant !== "reply" || !!autoFocus);
   const [dragging, setDragging] = React.useState(false);
   const [caret, setCaret] = React.useState(0);
@@ -307,7 +313,7 @@ export function Composer({
       if (edit) {
         await editPost(edit, text, media);
       } else {
-        await createPost({ text, media, replyTo, quote });
+        await createPost({ text, media, replyTo, quote, channel });
       }
       setText("");
       setImages([]);
@@ -495,6 +501,7 @@ export function Composer({
                 >
                   <ImagePlus className="size-5" />
                 </button>
+                {!edit && !replyTo && <LegionFeedToggle value={channel} onChange={setChannel} disabled={!!phase} />}
               </div>
               <div className="flex items-center gap-3">
                 <RemainingRing used={used} />

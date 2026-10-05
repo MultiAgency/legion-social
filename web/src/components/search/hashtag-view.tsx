@@ -2,13 +2,14 @@
 
 import { Feed } from "@/components/feed/feed";
 import { PageHeader } from "@/components/shell/page-header";
+import { feedName } from "@/components/channels/channel-label";
 
-export function HashtagView({ tag }: { tag: string }) {
+export function HashtagView({ tag, channel = null }: { tag: string; channel?: string | null }) {
   return (
     <>
-      <PageHeader back title={`#${tag}`} subtitle="Hashtag" />
+      <PageHeader back title={`#${tag}`} subtitle={channel ? `Hashtag · ${feedName(channel)}` : "Hashtag"} />
       <Feed
-        spec={{ kind: "hashtag", tag }}
+        spec={{ kind: "hashtag", tag, channel }}
         empty={{ title: `No posts with #${tag} yet`, body: "Posts using this hashtag will show up here." }}
       />
     </>

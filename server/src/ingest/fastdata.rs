@@ -50,6 +50,9 @@ pub struct LogAction {
     /// dropped keys (a key over 1024 bytes is cut to its first 64 bytes)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub d: Vec<(String, DropReason)>,
+    /// The receiver when it isn't the social account: the post's channel (docs/LEGION.md §3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub c: Option<String>,
 }
 
 /// One block's worth of `social` writes: one line of the event log.
@@ -134,6 +137,7 @@ pub fn parse_action(order_id: u64, tx: Option<String>, predecessor: String, args
         s: ActionStatus::Ok,
         r: vec![],
         d: vec![],
+        c: None,
     };
     let Some(object) = serde_json::from_slice::<serde_json::Value>(args)
         .ok()

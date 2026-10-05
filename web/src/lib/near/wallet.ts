@@ -121,16 +121,21 @@ export function allowanceYocto(): bigint {
   return micro * BigInt(10) ** BigInt(18);
 }
 
-function addPostingKeyAction(publicKey: string): Action {
+function addPostingKeyAction(publicKey: string, receiverId = env.socialAccountId, methods = POSTING_METHODS): Action {
   return actionCreators.addKey(
     PublicKey.fromString(publicKey),
-    actionCreators.functionCallAccessKey(env.socialAccountId, POSTING_METHODS, allowanceYocto()),
+    actionCreators.functionCallAccessKey(receiverId, methods, allowanceYocto()),
   );
 }
 
 /** One wallet approval: AddKey(app key, FunctionCall to `social`, posting methods, allowance). */
 export async function addPostingKey(accountId: string, publicKey: string, theme?: "dark" | "light") {
   await send(accountId, [addPostingKeyAction(publicKey)], theme);
+}
+
+/** One wallet approval: AddKey(key, FunctionCall to `channel`, `__fastdata_kv`) (docs/LEGION.md §3). */
+export async function addChannelKey(accountId: string, publicKey: string, channel: string, theme?: "dark" | "light") {
+  await send(accountId, [addPostingKeyAction(publicKey, channel, ["__fastdata_kv"])], theme);
 }
 
 /** One wallet approval: `[AddKey(new), DeleteKey(old)]`. */

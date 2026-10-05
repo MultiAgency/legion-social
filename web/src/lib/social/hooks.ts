@@ -249,6 +249,8 @@ export interface ComposeInput {
   media: MediaValue[];
   replyTo: Post | null;
   quote: Post | null;
+  /** A channel account to post to instead of `social` (docs/LEGION.md §3). */
+  channel?: string | null;
 }
 
 async function fetchConfirmedPost(key: string, viewer: string): Promise<Post | null> {
@@ -305,6 +307,7 @@ export function useCreatePost() {
         hashtags: extractHashtags(value.text ?? ""),
         counts: { replies: 0, reposts: 0, likes: 0, quotes: 0 },
         viewer: { liked: false, reposted: false },
+        channel: input.channel ?? null,
         _pending: true,
       };
       const item: FeedItem = {
@@ -320,13 +323,18 @@ export function useCreatePost() {
             { kind: "replies", postKey: input.replyTo.key },
             { kind: "account", tab: "replies", account: a },
           ]
-        : [
-            // For you starts with your own and followed posts, so a new post belongs on top.
-            { kind: "for_you" },
-            { kind: "following", account: a },
-            { kind: "global" },
-            { kind: "account", tab: "posts", account: a },
-          ];
+        : input.channel
+          ? [
+              { kind: "channel", channel: input.channel },
+              { kind: "account", tab: "posts", account: a },
+            ]
+          : [
+              // For you starts with your own and followed posts, so a new post belongs on top.
+              { kind: "for_you" },
+              { kind: "following", account: a },
+              { kind: "global" },
+              { kind: "account", tab: "posts", account: a },
+            ];
       if (!input.replyTo && pending.media.length > 0) {
         feeds.push({ kind: "account", tab: "media", account: a });
       }
@@ -362,7 +370,7 @@ export function useCreatePost() {
 
       let hash: string;
       try {
-        hash = await writeKv(a, data);
+        hash = await writeKv(a, data, { channel: input.channel });
       } catch (err) {
         rollback();
         throw err;
@@ -430,7 +438,7 @@ export function useEditPost() {
       });
       let hash: string;
       try {
-        hash = await writeKv(accountId, data);
+        hash = await writeKv(accountId, data, { channel: post.channel });
       } catch (err) {
         patchPostEverywhere(qc, post.key, restore);
         throw err;
@@ -463,7 +471,7 @@ export function useDeletePost() {
       }
       try {
         const { writeKv } = await loadKv();
-        const hash = await writeKv(accountId, data);
+        const hash = await writeKv(accountId, data, { channel: post.channel });
         toast.success("Post deleted", {
           description: "Earlier versions stay in the public FastData history.",
         });

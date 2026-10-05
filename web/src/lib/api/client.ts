@@ -116,7 +116,9 @@ export const api = {
   forYouFeed: (p?: ListParams) => list<FeedItem>("/v1/feed/for_you", p),
   followingFeed: (account: string, p?: ListParams) =>
     list<FeedItem>(`/v1/feed/following/${enc(account)}`, p),
-  hashtagFeed: (tag: string, p?: ListParams) => list<FeedItem>(`/v1/hashtags/${enc(tag)}`, p),
+  hashtagFeed: (tag: string, p?: ListParams, channel?: string | null) =>
+    list<FeedItem>(`/v1/hashtags/${enc(tag)}`, p, { channel }),
+  channelFeed: (channel: string, p?: ListParams) => list<FeedItem>(`/v1/feed/channel/${enc(channel)}`, p),
   searchPosts: (q: string, p?: ListParams) => list<FeedItem>("/v1/search/posts", p, { q }),
 
   /* Accounts */
