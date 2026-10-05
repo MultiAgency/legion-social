@@ -45,6 +45,7 @@ import { extractHashtags, extractMentions } from "./text";
 
 import { ownFeed, writeFeed } from "@/lib/legion/feed";
 import { pickedFeedsFor } from "@/lib/legion/home-feeds";
+import { membershipQuery } from "@/lib/legion/membership";
 
 const loadKv = () => import("@/lib/near/kv");
 
@@ -342,7 +343,8 @@ export function useCreatePost() {
       if (!input.replyTo && pending.media.length > 0) {
         feeds.push({ kind: "account", tab: "media", account: a });
       }
-      feeds.push(...pickedFeedsFor(feed, value.text ?? ""));
+      const member = qc.getQueryData(membershipQuery(a).queryKey)?.rank != null;
+      feeds.push(...pickedFeedsFor({ channel: feed, text: value.text ?? "", reply: !!input.replyTo, member }));
       for (const spec of feeds) prependToFeed(qc, spec, a, item);
       if (input.replyTo) {
         patchPostEverywhere(qc, input.replyTo.key, (p) => ({

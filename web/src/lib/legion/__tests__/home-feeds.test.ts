@@ -38,10 +38,15 @@ describe("#legion on public posts", () => {
     expect(hasTag("mail@x#legion", "legion")).toBe(false);
   });
 
-  it("puts a new post on the Legion feed right away when it belongs there", () => {
-    expect(pickedFeedsFor("legion", "hi", "legion")).toEqual([{ kind: "picked", feed: "legion" }]);
-    expect(pickedFeedsFor(null, "hi #legion", "legion")).toEqual([{ kind: "picked", feed: "legion" }]);
-    expect(pickedFeedsFor(null, "hi", "legion")).toEqual([]);
-    expect(pickedFeedsFor("legion", "hi", null)).toEqual([]);
+  it("puts a new post on the Legion feed right away only by the server's rule", () => {
+    const legion = [{ kind: "picked", feed: "legion" }];
+    const post = { channel: null as string | null, text: "hi", reply: false, member: true };
+    expect(pickedFeedsFor({ ...post, channel: "legion" }, "legion")).toEqual(legion);
+    expect(pickedFeedsFor({ ...post, text: "hi #legion" }, "legion")).toEqual(legion);
+    expect(pickedFeedsFor(post, "legion")).toEqual([]);
+    // Replies and non-members' posts aren't in the Legion feed.
+    expect(pickedFeedsFor({ ...post, channel: "legion", reply: true }, "legion")).toEqual([]);
+    expect(pickedFeedsFor({ ...post, text: "hi #legion", member: false }, "legion")).toEqual([]);
+    expect(pickedFeedsFor({ ...post, channel: "legion" }, null)).toEqual([]);
   });
 });

@@ -58,7 +58,7 @@ impl State {
     /// A live post whose author isn't hidden.
     pub fn is_visible(&self, pid: Pid) -> bool {
         let post = self.post(pid);
-        post.is_live() && !self.is_hidden(post.key.author)
+        post.is_live() && !self.is_hidden(post.key.author) && self.passes_feed_rule(pid)
     }
 
     pub(crate) fn body(&self, pid: Pid) -> Option<&PostBody> {

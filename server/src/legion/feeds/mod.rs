@@ -192,6 +192,15 @@ impl State {
         self.reads_feeds() && !self.feed_channel(account, None, 1).is_empty()
     }
 
+    /// Whether a post may be shown at all under its feed account's rule: a post sent to `legion`
+    /// is members only, so a non-member's is shown nowhere (docs/LEGION.md §3).
+    pub fn passes_feed_rule(&self, pid: Pid) -> bool {
+        match self.channel_of(pid) {
+            Some(home::LEGION_FEED) => self.rank(self.post(pid).key.author).is_some(),
+            _ => true,
+        }
+    }
+
     /// The channel a post was created in; `None` for a post on `social`.
     pub fn channel_of(&self, pid: Pid) -> Option<&str> {
         self.channels.by_post.get(&pid).map(|c| &**c)

@@ -132,3 +132,32 @@ fn a_tag_query_is_normalized() {
     assert_eq!(q("#"), None);
     assert_eq!(TagQuery { tag: None }.tag(), None);
 }
+
+#[test]
+fn a_non_members_post_to_legion_appears_nowhere() {
+    use crate::api::dto::Ctx;
+    use crate::state::query::ProfileTab;
+    let mut state = legion_state(vec![
+        block(1, vec![("m.near", Some("legion"), json!({"post/1": {"text": "member #city"}}))]),
+        block(2, vec![("x.near", Some("legion"), json!({"post/1": {"text": "outsider #city"}}))]),
+        block(3, vec![("x.near", None, json!({"post/2": {"text": "outsider on social"}}))]),
+    ]);
+    member(&mut state, "m.near");
+    let x = state.aid("x.near").unwrap();
+    let hidden = state.pid_by_key[&crate::state::PostKey { author: x, id: 1 }];
+    assert!(!state.is_visible(hidden));
+    assert_eq!(texts(&state, state.feed_channel(LEGION_FEED, None, 10)), ["member #city"]);
+    assert_eq!(texts(&state, state.feed_hashtag(LEGION_FEED, "city", None, 10)), ["member #city"]);
+    assert_eq!(texts(&state, state.feed_legion(None, None, 10)), ["member #city"]);
+    assert_eq!(texts(&state, state.account_feed(x, ProfileTab::Posts, None, 10)), ["outsider on social"]);
+    assert_eq!(texts(&state, state.search_posts("outsider", None, 10)), ["outsider on social"]);
+    let ctx = Ctx { state: &state, viewer: None, gateway: "", site_hosts: &[], unfurl: None };
+    assert!(ctx.post(hidden, true).is_none());
+    // Its feed shows only the member's post, so the account has a feed; with no member posts, none.
+    assert!(state.has_feed(LEGION_FEED));
+    let only_outsider = legion_state(vec![block(1, vec![("x.near", Some("legion"), json!({"post/1": {"text": "hi"}}))])]);
+    assert!(!only_outsider.has_feed(LEGION_FEED));
+    // Once the account becomes a member, its post shows.
+    member(&mut state, "x.near");
+    assert!(state.is_visible(hidden));
+}

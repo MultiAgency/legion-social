@@ -98,7 +98,11 @@ The event log keeps a feed-account action's rows under its own field (`c`), neve
 that doesn't know feed accounts reads the action as empty instead of replaying members-only posts as
 `social`.
 
-Where members-only posts appear:
+**Only members' posts to `legion` are shown.** A post sent to `legion` by an account without a rank
+(§1) is shown nowhere on the site: not in its feeds, its author's profile, threads, search or
+anywhere else. It appears once the account becomes a member, since nothing was dropped.
+
+Where members' members-only posts appear:
 
 | Shown | Not shown |
 |---|---|

@@ -128,8 +128,15 @@ export function destinationFor(id: HomeFeedId, account: string | null = legionFe
   }
 }
 
-/** Extra feeds a new post belongs on right away: the Legion feed, for members-only or #legion. */
-export function pickedFeedsFor(channel: string | null, text: string, account: string | null = legionFeed): FeedSpec[] {
-  if (!account) return [];
-  return channel === account || (!channel && hasTag(text, LEGION_TAG)) ? [{ kind: "picked", feed: "legion" }] : [];
+/**
+ * Extra feeds a new post belongs on right away, by the server's rule (docs/LEGION.md §4.1): the
+ * Legion feed, for a top-level post by a member that's members-only or tagged #legion.
+ */
+export function pickedFeedsFor(
+  post: { channel: string | null; text: string; reply: boolean; member: boolean },
+  account: string | null = legionFeed,
+): FeedSpec[] {
+  if (!account || post.reply || !post.member) return [];
+  const belongs = post.channel === account || (!post.channel && hasTag(post.text, LEGION_TAG));
+  return belongs ? [{ kind: "picked", feed: "legion" }] : [];
 }
