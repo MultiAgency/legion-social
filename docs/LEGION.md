@@ -69,7 +69,9 @@ Every other key under `legion/` is reserved for later versions of this document.
 
 A member can post to members only. The post is written exactly as a social-kv/1 post or reply
 (`docs/STANDARD.md` §3.2–3.3), but as a `__fastdata_kv` call to the account **`legion`** instead
-of `social`. "Members only" means kept off near.social: the post is public chain data like any
+of `social`. `legion` is the server's `LEGION_FEED` (its default); the web's
+`NEXT_PUBLIC_LEGION_FEED` must name the same account, or the web would write members-only posts
+somewhere the server doesn't treat as the Legion feed. "Members only" means kept off near.social: the post is public chain data like any
 other, readable by anyone through FastData.
 
 A **feed account** is an account that doesn't exist (an unclaimed name), such as `legion`: nobody
@@ -100,7 +102,8 @@ that doesn't know feed accounts reads the action as empty instead of replaying m
 
 **Only members' posts to `legion` are shown.** A post sent to `legion` by an account without a rank
 (§1) is shown nowhere on the site: not in its feeds, its author's profile, threads, search or
-anywhere else. It appears once the account becomes a member, since nothing was dropped.
+anywhere else. It appears once the account becomes a member, since nothing was dropped. Such a reply doesn't count in its parent's reply
+count either, and the web doesn't offer a non-member the reply box on a members-only post.
 
 Where members' members-only posts appear:
 

@@ -344,7 +344,7 @@ impl<'a> Ctx<'a> {
             hashtags: body.hashtags.iter().map(|t| &**t).collect(),
             channel: self.state.channel_of(pid),
             counts: PostCounts {
-                replies: post.replies,
+                replies: self.state.reply_count(pid),
                 reposts: post.reposts,
                 likes: post.likes,
                 quotes: post.quotes,

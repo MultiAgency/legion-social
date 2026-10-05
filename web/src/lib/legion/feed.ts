@@ -45,3 +45,8 @@ export function hashtagChannel(param: string | string[] | undefined, account: st
 export function feedHref(account: string): string {
   return `/${encodeURIComponent(account)}/feed`;
 }
+
+/** Whether a post takes replies from members only: it was sent to the Legion feed account. */
+export function membersOnly(channel: string | null | undefined, account: string | null = legionFeed): boolean {
+  return !!account && channel === account;
+}

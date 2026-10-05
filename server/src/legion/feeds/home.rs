@@ -16,8 +16,6 @@ use actix_web::{web, HttpResponse};
 use serde::Deserialize;
 use serde_json::json;
 
-/// The feed account Legion-only posts are sent to (docs/LEGION.md §3).
-pub const LEGION_FEED: &str = "legion";
 /// The hashtag that brings a public post into the Legion feed.
 pub const LEGION_TAG: &str = "legion";
 
@@ -65,12 +63,14 @@ impl State {
             .collect()
     }
 
-    /// The Legion feed: members' posts sent to `legion`, or on `social` with #legion.
+    /// The Legion feed: members' posts sent to the Legion feed account (`LEGION_FEED`), or on
+    /// `social` with #legion.
     pub fn feed_legion(&self, tag: Option<&str>, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
+        let Some(legion) = self.legion_feed() else { return vec![] };
         self.home_feed(tag, before, limit, |pid| {
             self.rank(self.post(pid).key.author).is_some()
                 && match self.channel_of(pid) {
-                    Some(feed) => feed == LEGION_FEED,
+                    Some(feed) => feed == legion,
                     None => self.has_tag(pid, LEGION_TAG),
                 }
         })

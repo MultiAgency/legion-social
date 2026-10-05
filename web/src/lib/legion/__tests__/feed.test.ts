@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isAccountId } from "@/lib/social/standard";
-import { configured, feedHref, hashtagChannel, hashtagHref, ownFeed, writeFeed } from "../feed";
+import { configured, feedHref, hashtagChannel, hashtagHref, membersOnly, ownFeed, writeFeed } from "../feed";
 import { feedKeyId } from "../feed-keys";
 
 describe("Legion feed", () => {
@@ -50,5 +50,15 @@ describe("feed links", () => {
     expect(id).toBe("a.near:legion");
     // listKeyAccounts keeps ids that are account ids; `:` never appears in one.
     expect(isAccountId(id)).toBe(false);
+  });
+});
+
+describe("membersOnly", () => {
+  it("is a post sent to the configured Legion feed account", () => {
+    expect(membersOnly("legion", "legion")).toBe(true);
+    expect(membersOnly("lounge", "lounge")).toBe(true);
+    expect(membersOnly(null, "legion")).toBe(false);
+    expect(membersOnly("other.near", "legion")).toBe(false);
+    expect(membersOnly("legion", null)).toBe(false);
   });
 });

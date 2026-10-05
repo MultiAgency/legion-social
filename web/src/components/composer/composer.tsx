@@ -12,6 +12,7 @@ import { useAccount } from "@/components/providers/account-provider";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { Button } from "@/components/ui/button";
 import { AudienceToggle } from "@/components/legion/audience-toggle";
+import { MembersOnlyReply, useReplyAllowed } from "@/components/legion/members-only-reply";
 import { writeFeed } from "@/lib/legion/feed";
 import { withTag, type Destination } from "@/lib/legion/home-feeds";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -153,6 +154,7 @@ export function Composer({
 }: ComposerProps) {
   const { accountId, canWrite, requireKey, enablePosting, busy } = useAccount();
   const createPost = useCreatePost();
+  const replyAllowed = useReplyAllowed(replyTo, accountId);
   const editPost = useEditPost();
 
   const [text, setText] = React.useState(edit?.text ?? "");
@@ -360,6 +362,8 @@ export function Composer({
   };
 
   if (!accountId) return null;
+  if (replyAllowed === "no") return <MembersOnlyReply className={className} />;
+  if (replyAllowed === "checking") return null;
 
   const needsKey = !canWrite;
   const ph =
