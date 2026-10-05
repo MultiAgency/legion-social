@@ -186,7 +186,7 @@ fn without_channel_writes_nothing_changes() {
     routed.apply_block(&raw);
     assert_eq!(texts(&plain, plain.feed_global(None, 10)), texts(&routed, routed.feed_global(None, 10)));
     let a = plain.aid("a.near").unwrap();
-    assert_eq!(plain.post_counts(pid(&plain, "a.near", 1)), routed.post_counts(pid(&routed, "a.near", 1)));
+    assert_eq!(plain.post(pid(&plain, "a.near", 1)).likes, routed.post(pid(&routed, "a.near", 1)).likes);
     assert_eq!(plain.account(a).profile.name, routed.account(routed.aid("a.near").unwrap()).profile.name);
 }
 
@@ -431,10 +431,5 @@ fn a_feed_of_only_hidden_posts_has_no_feed() {
     assert!(state.has_feed("legion"));
     // Denylisted: the feed would show nothing, so the profile says there's no feed.
     state.set_hidden(&["spam.near".to_string()]);
-    assert!(!state.has_feed("legion"));
-    // Not a member: the same.
-    let mut state = legion_state();
-    state.apply_block(&block(1, vec![("outsider.near", Some("legion"), json!({"post/1": {"text": "hi"}}))]));
-    assert!(state.feed_channel("legion", None, 10).is_empty());
     assert!(!state.has_feed("legion"));
 }

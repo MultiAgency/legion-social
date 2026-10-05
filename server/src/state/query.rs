@@ -149,9 +149,6 @@ impl State {
     }
 
     pub fn account_feed(&self, aid: Aid, tab: ProfileTab, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
-        if self.is_outside_legion(aid) {
-            return vec![];
-        }
         newest_first(&self.account(aid).timeline, before)
             .take(MAX_SCAN)
             .filter_map(|&(seq, entry)| self.timeline_entry(aid, seq, entry, tab))
@@ -161,9 +158,6 @@ impl State {
 
     /// Posts liked by `aid`, newest like first (`seq` is the like's seq).
     pub fn account_likes(&self, aid: Aid, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
-        if self.is_outside_legion(aid) {
-            return vec![];
-        }
         newest_first(&self.account(aid).liked, before)
             .take(MAX_SCAN)
             .filter(|&&(seq, pid)| self.likes.get(&(aid, pid)) == Some(&seq) && self.is_visible(pid))
@@ -262,9 +256,6 @@ impl State {
     }
 
     pub fn followers(&self, aid: Aid, before: Option<Seq>, limit: usize) -> Vec<(Seq, Aid)> {
-        if self.is_outside_legion(aid) {
-            return vec![];
-        }
         let account = self.account(aid);
         newest_first(&account.followers_log, before)
             .filter(|&&(seq, f)| account.followers.get(&f) == Some(&seq) && !self.is_hidden(f))
@@ -274,9 +265,6 @@ impl State {
     }
 
     pub fn following(&self, aid: Aid, before: Option<Seq>, limit: usize) -> Vec<(Seq, Aid)> {
-        if self.is_outside_legion(aid) {
-            return vec![];
-        }
         let account = self.account(aid);
         newest_first(&account.following_log, before)
             .filter(|&&(seq, f)| account.following.get(&f) == Some(&seq) && !self.is_hidden(f))
@@ -332,7 +320,7 @@ impl State {
                 } else {
                     return None;
                 };
-                Some((score, Reverse(self.follower_count(aid as Aid)), aid as Aid))
+                Some((score, Reverse(a.followers.len()), aid as Aid))
             })
             .collect();
         hits.sort_unstable();
@@ -346,7 +334,7 @@ impl State {
             .iter()
             .enumerate()
             .filter(|(aid, a)| a.profile.exists() && !self.is_hidden(*aid as Aid))
-            .map(|(aid, _)| (Reverse(self.follower_count(aid as Aid)), aid as Aid))
+            .map(|(aid, a)| (Reverse(a.followers.len()), aid as Aid))
             .collect();
         all.sort_unstable();
         all.into_iter().take(limit).map(|(_, aid)| aid).collect()
@@ -534,9 +522,12 @@ impl State {
     pub fn trending_score(&self, pid: Pid, now_ms: u64) -> f64 {
         let post = self.post(pid);
         let created_ms = post.created.map_or(now_ms, |c| c.1);
-        let (likes, reposts, replies, quotes) = self.post_counts(pid);
-        let engagement = likes as f64 + 2.0 * reposts as f64 + 2.0 * replies as f64 + 3.0 * quotes as f64 + 1.0;
-        let followers = self.follower_count(post.key.author) as f64;
+        let engagement = post.likes as f64
+            + 2.0 * post.reposts as f64
+            + 2.0 * post.replies as f64
+            + 3.0 * post.quotes as f64
+            + 1.0;
+        let followers = self.account(post.key.author).followers.len() as f64;
         let age_hours = now_ms.saturating_sub(created_ms) as f64 / 3_600_000.0;
         engagement * (1.0 + 0.1 * (1.0 + followers).ln()) / (age_hours + 2.0).powf(1.5)
     }
