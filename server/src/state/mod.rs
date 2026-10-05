@@ -397,7 +397,8 @@ impl State {
             ..Default::default()
         };
         let mut row: u32 = 0;
-        for action in &block.a {
+        let feeds = self.reads_feeds();
+        for action in block.a.iter().filter(|a| a.c.is_none() || feeds) {
             let mut report = ActionReport {
                 kind: ActionKind::Kv,
                 status: action.s,

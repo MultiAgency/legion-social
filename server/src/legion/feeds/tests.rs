@@ -348,3 +348,22 @@ fn a_log_with_feed_rows_replays_as_upstream_with_legion_off() {
     // No answer mentions a feed.
     assert!(!api_view(&with_feed).to_string().contains("channel"));
 }
+
+#[test]
+fn a_block_mixing_feed_and_social_actions_replays_as_upstream_with_legion_off() {
+    let first = vec![("a.near", None, json!({"post/1": {"text": "root"}}))];
+    // The feed action comes first in its block: with Legion off it must take no row slot.
+    let mixed = vec![
+        ("b.near", Some("legion"), json!({"post/2": {"text": "legion post"}})),
+        ("b.near", None, json!({"post/3": {"text": "social post", "reply_to": "a.near/1"}})),
+    ];
+    let mut with_feed = State::new();
+    with_feed.apply_block(&block(1, first.clone()));
+    let fx = with_feed.apply_block(&block(2, mixed));
+    let mut upstream = State::new();
+    upstream.apply_block(&block(1, first));
+    upstream.apply_block(&block(2, vec![("b.near", None, json!({"post/3": {"text": "social post", "reply_to": "a.near/1"}}))]));
+    assert_eq!(api_view(&with_feed), api_view(&upstream));
+    // The skipped feed action gets no /v1/tx report.
+    assert_eq!(fx.tx_hashes, vec!["tx2-1".to_string()]);
+}

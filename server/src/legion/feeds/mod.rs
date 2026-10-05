@@ -106,6 +106,13 @@ impl State {
     /// Applies one row of an action sent to `channel` (`None`: `social`). Only posts count in a
     /// channel, and a post's first write fixes its channel: writes to it from anywhere else are
     /// ignored.
+    /// Whether `apply_block` reads feed actions (`LogAction::c`) at all. Feeds are part of Legion:
+    /// with it off, a feed action in the log is skipped whole, taking no row slots and no `/v1/tx`
+    /// report, as upstream never reads it.
+    pub(crate) fn reads_feeds(&self) -> bool {
+        self.legion.is_some()
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn apply_channel_row(
         &mut self,
@@ -117,11 +124,6 @@ impl State {
         raw: &str,
         fx: &mut BlockEffects,
     ) -> (KeyStatus, Option<String>) {
-        // Feeds are part of Legion: with it off, a feed row in the log is skipped like any write
-        // upstream never reads, so state, counters and answers all match upstream.
-        if channel.is_some() && self.legion.is_none() {
-            return (KeyStatus::Ignored, None);
-        }
         let Key::Post(id) = parse_key(key) else {
             return match channel {
                 None => self.apply_row(seq, ms, author, key, raw, fx),
