@@ -44,7 +44,7 @@ fn legion_state(blocks: Vec<LogBlock>) -> State {
 }
 
 #[test]
-fn the_legion_feed_is_members_posts_to_legion_or_tagged_legion() {
+fn the_legion_feeds_are_members_posts_on_social_or_sent_to_legion() {
     let mut state = legion_state(vec![
         block(1, vec![("m.near", Some("legion"), json!({"post/1": {"text": "members only"}}))]),
         block(2, vec![("m.near", None, json!({"post/2": {"text": "public #legion"}}))]),
@@ -55,7 +55,7 @@ fn the_legion_feed_is_members_posts_to_legion_or_tagged_legion() {
         block(7, vec![("m.near", Some("legion"), json!({"post/5": {"text": "reply", "reply_to": "m.near/1"}}))]),
     ]);
     member(&mut state, "m.near");
-    assert_eq!(texts(&state, state.feed_legion(None, None, 10)), ["public #legion", "members only"]);
+    assert_eq!(texts(&state, state.feed_legion(None, None, None, 10)), ["plain", "public #legion", "members only"]);
     // Everyone shows everyone, members or not, but never Legion-only posts.
     let global = texts(&state, state.feed_global(None, 10));
     assert!(global.contains(&"outsider #legion".to_string()));
@@ -70,8 +70,10 @@ fn the_tag_param_scopes_a_feed() {
         block(3, vec![("m.near", None, json!({"post/3": {"text": "#legion only"}}))]),
     ]);
     member(&mut state, "m.near");
-    assert_eq!(texts(&state, state.feed_legion(Some("city"), None, 10)), ["#legion #city", "meetup #city"]);
-    assert!(state.feed_legion(Some("nothing"), None, 10).is_empty());
+    assert_eq!(texts(&state, state.feed_legion(None, Some("city"), None, 10)), ["#legion #city", "meetup #city"]);
+    assert_eq!(texts(&state, state.feed_legion(Some(LegionSource::Members), Some("city"), None, 10)), ["#legion #city"]);
+    assert_eq!(texts(&state, state.feed_legion(Some(LegionSource::Space), Some("city"), None, 10)), ["meetup #city"]);
+    assert!(state.feed_legion(None, Some("nothing"), None, 10).is_empty());
 }
 
 #[test]
@@ -148,7 +150,7 @@ fn a_non_members_post_to_legion_appears_nowhere() {
     assert!(!state.is_visible(hidden));
     assert_eq!(texts(&state, state.feed_channel("legion", None, 10)), ["member #city"]);
     assert_eq!(texts(&state, state.feed_hashtag("legion", "city", None, 10)), ["member #city"]);
-    assert_eq!(texts(&state, state.feed_legion(None, None, 10)), ["member #city"]);
+    assert_eq!(texts(&state, state.feed_legion(None, None, None, 10)), ["member #city"]);
     assert_eq!(texts(&state, state.account_feed(x, ProfileTab::Posts, None, 10)), ["outsider on social"]);
     assert_eq!(texts(&state, state.search_posts("outsider", None, 10)), ["outsider on social"]);
     let ctx = Ctx { state: &state, viewer: None, gateway: "", site_hosts: &[], unfurl: None };
@@ -172,7 +174,7 @@ fn the_legion_feed_account_is_configurable() {
     state.set_legion_feed("lounge");
     member(&mut state, "m.near");
     // `lounge` is the Legion feed: members only, and listed by /v1/feed/legion.
-    assert_eq!(texts(&state, state.feed_legion(None, None, 10)), ["member to lounge"]);
+    assert_eq!(texts(&state, state.feed_legion(None, None, None, 10)), ["member to lounge"]);
     assert_eq!(texts(&state, state.feed_channel("lounge", None, 10)), ["member to lounge"]);
     // `legion` is now just another feed account: open, and not the Legion feed.
     assert_eq!(texts(&state, state.feed_channel("legion", None, 10)), ["outsider to legion"]);
@@ -213,4 +215,41 @@ fn a_hidden_post_sends_no_notifications() {
     // Once the author becomes a member, they show.
     member(&mut state, "x.near");
     assert!(!state.notifications(m, None, 10).is_empty());
+}
+
+#[test]
+fn source_picks_legion_or_legion_space() {
+    let mut state = legion_state(vec![
+        block(1, vec![("m.near", Some("legion"), json!({"post/1": {"text": "in the space"}}))]),
+        block(2, vec![("m.near", None, json!({"post/2": {"text": "on social, untagged"}}))]),
+        block(3, vec![("m.near", Some("legion"), json!({"post/3": {"text": "space #legion"}}))]),
+        block(4, vec![("x.near", None, json!({"post/1": {"text": "outsider #legion"}}))]),
+        block(5, vec![("m.near", None, json!({"post/4": {"text": "reply", "reply_to": "x.near/1"}}))]),
+    ]);
+    member(&mut state, "m.near");
+    let feed = |source| texts(&state, state.feed_legion(source, None, None, 10));
+    assert_eq!(feed(Some(LegionSource::Members)), ["on social, untagged"]);
+    assert_eq!(feed(Some(LegionSource::Space)), ["space #legion", "in the space"]);
+    assert_eq!(feed(None), ["space #legion", "on social, untagged", "in the space"], "without source: both");
+    let q: SourceQuery = serde_json::from_value(json!({"source": "space"})).unwrap();
+    assert_eq!(q.source, Some(LegionSource::Space));
+    let q: SourceQuery = serde_json::from_value(json!({"source": "members"})).unwrap();
+    assert_eq!(q.source, Some(LegionSource::Members));
+    assert!(serde_json::from_value::<SourceQuery>(json!({"source": "tag"})).is_err());
+}
+
+#[test]
+fn tag_scopes_names_and_builders_too() {
+    let state = legion_state(vec![block(
+        1,
+        vec![
+            ("x.agency", None, json!({"post/1": {"text": "#city in agency"}})),
+            ("y.agency", None, json!({"post/1": {"text": "agency, no tag"}})),
+            ("b.near", None, json!({"post/1": {"text": "#city builder"}})),
+            ("c.near", None, json!({"post/1": {"text": "#city not a builder"}})),
+        ],
+    )]);
+    assert_eq!(texts(&state, state.feed_names("agency", Some("city"), None, 10)), ["#city in agency"]);
+    let members: builders::Members = std::sync::Arc::new(["b.near".to_string()].into_iter().collect());
+    assert_eq!(texts(&state, state.feed_builders(&members, Some("city"), None, 10)), ["#city builder"]);
 }
