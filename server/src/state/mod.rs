@@ -303,6 +303,8 @@ pub struct State {
     pub hidden: FxHashSet<Aid>,
     /// NEAR Legion membership (read-time filter); `None` with Legion off.
     pub legion: Option<crate::legion::Members>,
+    /// Posts written to accounts other than `social` (docs/LEGION.md §3).
+    pub channels: crate::legion::feeds::Channels,
     /// (block height, block ms) of every block with rows, to date any seq.
     pub block_times: Vec<(u64, u64)>,
     pub last_block_height: u64,
@@ -395,7 +397,8 @@ impl State {
             ..Default::default()
         };
         let mut row: u32 = 0;
-        for action in &block.a {
+        let feeds = self.reads_feeds();
+        for action in block.a.iter().filter(|a| a.c.is_none() || feeds) {
             let mut report = ActionReport {
                 kind: ActionKind::Kv,
                 status: action.s,
@@ -406,7 +409,7 @@ impl State {
                 let (status, reason) = if row < MAX_ROWS_PER_BLOCK {
                     let seq = make_seq(block.b, row);
                     row += 1;
-                    self.apply_row(seq, ms, &action.p, key, value, &mut fx)
+                    self.apply_channel_row(action.c.as_deref(), seq, ms, &action.p, key, value, &mut fx)
                 } else {
                     (KeyStatus::RateLimited, Some("block row limit".into()))
                 };
@@ -489,7 +492,7 @@ impl State {
         }
     }
 
-    fn apply_row(&mut self, seq: Seq, ms: u64, author_name: &str, key: &str, raw: &str, fx: &mut BlockEffects) -> RowResult {
+    pub(crate) fn apply_row(&mut self, seq: Seq, ms: u64, author_name: &str, key: &str, raw: &str, fx: &mut BlockEffects) -> RowResult {
         let parsed = parse_key(key);
         match parsed {
             Key::Unknown | Key::ReplyLink => return (KeyStatus::Ignored, None),

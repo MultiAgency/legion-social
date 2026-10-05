@@ -5,6 +5,7 @@ use crate::config::Config;
 use crate::ingest::fastdata::{compute_order_id, parse_action, parse_fastfs_header, FastfsHeader, LogBlock};
 use crate::state::BlockEffects;
 use crate::ingest::log::EventLog;
+use crate::legion::feeds;
 use crate::state::State;
 use fastnear_neardata_fetcher::fetcher;
 use fastnear_primitives::near_primitives::views::{ActionView, ReceiptEnumView};
@@ -67,6 +68,8 @@ pub async fn run(
 
     let mut last_checkpoint = Instant::now();
     let mut last_height = start_block_height.saturating_sub(1);
+    // Feeds are part of Legion (docs/LEGION.md §3): off with it.
+    let feeds_on = state.read().legion.is_some();
     while let Some(block) = receiver.recv().await {
         let height = block.block.header.height;
         let timestamp_ns = block.block.header.timestamp;
@@ -77,9 +80,12 @@ pub async fn run(
             // Enumerate every outcome (not just ours) so order_id matches FastData's.
             for (receipt_index, outcome) in shard.receipt_execution_outcomes.into_iter().enumerate() {
                 let receipt = outcome.receipt;
-                if receipt.receiver_id.as_str() != config.social_account_id {
-                    continue;
-                }
+                let status = &outcome.execution_outcome.outcome.status;
+                let channel = match feeds::classify(feeds_on, &config.social_account_id, receipt.receiver_id.as_str(), status) {
+                    feeds::Receiver::Social => None,
+                    feeds::Receiver::Feed(feed) => Some(feed),
+                    feeds::Receiver::Other => continue,
+                };
                 let ReceiptEnumView::Action { actions: receipt_actions, .. } = receipt.receipt else {
                     continue;
                 };
@@ -87,13 +93,17 @@ pub async fn run(
                     if let ActionView::FunctionCall { method_name, args, .. } = action {
                         let order_id = compute_order_id(shard_id, receipt_index as u64, action_index as u64);
                         if method_name == KV_METHOD {
-                            actions.push(parse_action(
+                            let action = parse_action(
                                 order_id,
                                 outcome.tx_hash.map(|h| h.to_string()),
                                 receipt.predecessor_id.to_string(),
                                 &args,
-                            ));
-                        } else if method_name == FASTFS_METHOD {
+                            );
+                            match &channel {
+                                None => actions.push(action),
+                                Some(c) => actions.extend(feeds::channel_action(action, c)),
+                            }
+                        } else if method_name == FASTFS_METHOD && channel.is_none() {
                             uploads.push(Upload {
                                 order_id,
                                 tx: outcome.tx_hash.map(|h| h.to_string()),

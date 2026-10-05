@@ -98,7 +98,7 @@ impl State {
     pub fn feed_global(&self, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
         newest_first(&self.created, before)
             .take(MAX_SCAN)
-            .filter(|(_, pid)| self.is_visible(*pid) && self.is_top_level(*pid))
+            .filter(|(_, pid)| self.is_visible(*pid) && self.is_top_level(*pid) && self.on_social(*pid))
             .map(|&(seq, pid)| FeedEntry::Post { seq, pid })
             .take(limit)
             .collect()
@@ -179,7 +179,9 @@ impl State {
         newest_first(list, before)
             .take(MAX_SCAN)
             .filter(|&&(_, pid)| {
-                self.is_visible(pid) && self.body(pid).is_some_and(|b| b.hashtags.iter().any(|t| &**t == tag))
+                self.is_visible(pid)
+                    && self.on_social(pid)
+                    && self.body(pid).is_some_and(|b| b.hashtags.iter().any(|t| &**t == tag))
             })
             .map(|&(seq, pid)| FeedEntry::Post { seq, pid })
             .take(limit)
@@ -359,7 +361,7 @@ impl State {
             if post.created.is_some_and(|c| c.1 < since) {
                 break;
             }
-            if !self.is_visible(pid) {
+            if !self.is_visible(pid) || !self.on_social(pid) {
                 continue;
             }
             for tag in post.body.iter().flat_map(|b| b.hashtags.iter()) {
@@ -548,7 +550,7 @@ impl State {
             if self.post(pid).created.is_some_and(|c| c.1 < since) {
                 break;
             }
-            if self.is_visible(pid) && self.is_top_level(pid) {
+            if self.is_visible(pid) && self.is_top_level(pid) && self.on_social(pid) {
                 scored.push((self.trending_score(pid, now_ms), pid));
             }
         }
@@ -637,7 +639,7 @@ impl State {
             }
             let entry = buffer.pop_front()?;
             cursor.following = Pos::Before(entry.seq());
-            if !seen.contains(&entry.pid()) {
+            if !seen.contains(&entry.pid()) && self.on_social(entry.pid()) {
                 return Some((entry, Reason::Following));
             }
         }
@@ -674,6 +676,7 @@ impl State {
             cursor.recent = Pos::Before(seq);
             if self.is_visible(pid)
                 && self.is_top_level(pid)
+                && self.on_social(pid)
                 && !pool.contains(&pid)
                 && !followed.contains(&self.post(pid).key.author)
                 && !seen.contains(&pid)

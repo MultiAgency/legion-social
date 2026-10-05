@@ -141,6 +141,7 @@ mod tests {
                 s: ActionStatus::Ok,
                 r: vec![("post/1".into(), r#"{"text":"x"}"#.into())],
                 d: vec![],
+                c: None,
             }],
         }
     }

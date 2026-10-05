@@ -3,6 +3,7 @@
  * hooks. Using the same builders on both sides guarantees hydration hits the same cache keys.
  */
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { legionTab } from "@/lib/legion/feed";
 import { api, isNotFound, type ListParams } from "./client";
 import type { AccountCard, FeedItem, Notification, Page } from "./types";
 
@@ -13,7 +14,8 @@ export type FeedSpec =
   | { kind: "for_you" }
   | { kind: "following"; account: string }
   | { kind: "account"; tab: AccountTab; account: string }
-  | { kind: "hashtag"; tag: string }
+  | { kind: "hashtag"; tag: string; channel?: string | null }
+  | { kind: "channel"; channel: string }
   | { kind: "search"; q: string }
   | { kind: "replies"; postKey: string }
   | { kind: "quotes"; postKey: string };
@@ -33,7 +35,7 @@ export const SEARCH_ACCOUNTS_PREVIEW = 3;
 type Viewer = string | null | undefined;
 const v = (viewer: Viewer) => viewer ?? null;
 
-export type HomeTab = "for_you" | "following" | "latest";
+export type HomeTab = "for_you" | "following" | "latest" | "legion";
 
 /**
  * The home tab for `?feed=` and its feed: For you by default (`/`), Following
@@ -47,6 +49,8 @@ export function homeFeed(
   // Repeated params: use the first, like `URLSearchParams.get` on the client.
   const feed = Array.isArray(param) ? param[0] : param;
   if (feed === "latest") return { tab: "latest", spec: { kind: "global" } };
+  const legion = legionTab(feed);
+  if (legion) return legion;
   if (feed === "following" && viewer) {
     return { tab: "following", spec: { kind: "following", account: viewer } };
   }
@@ -100,7 +104,9 @@ export function fetchFeedPage(spec: FeedSpec, p: ListParams): Promise<Page<FeedI
     case "account":
       return ACCOUNT_TAB_FETCHERS[spec.tab](spec.account, params);
     case "hashtag":
-      return api.hashtagFeed(spec.tag, params);
+      return api.hashtagFeed(spec.tag, params, spec.channel);
+    case "channel":
+      return api.channelFeed(spec.channel, params);
     case "search":
       return api.searchPosts(spec.q, params);
     case "replies": {

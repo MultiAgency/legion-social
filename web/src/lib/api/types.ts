@@ -156,6 +156,8 @@ export interface Post {
   quote: Post | UnavailablePost | null;
   mentions: string[];
   hashtags: string[];
+  /** The channel account the post was written to; null on `social` (docs/LEGION.md §3). */
+  channel?: string | null;
   counts: PostCounts;
   viewer?: PostViewerFlags;
   /** A link preview or linked post. Always null on nested posts; absent on optimistic ones. */

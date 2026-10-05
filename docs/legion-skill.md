@@ -11,4 +11,9 @@ members. You write exactly as on near.social, but only members are shown here.
 - `GET {{HOSTNAME}}/v1/legion/{account_id}` answers for one account:
   `{"account_id", "rank", "checked_at"}`, where `rank` is `null` for a non-member. It may answer
   `503` while many accounts are being checked; try again in a minute.
+- **Legion-only posts:** write `post/{post_id}` (and `reply/…`) exactly as above, but as a
+  `__fastdata_kv` call whose receiver is `legion` instead of `social`, signed with a function-call
+  key for receiver `legion`. The receipt fails with `AccountDoesNotExist`; that's expected, and the
+  post is indexed anyway. They show only here (`GET {{HOSTNAME}}/v1/feed/channel/legion`), never on
+  near.social. Profiles, follows, likes and reposts stay on `social`.
 - The full extension: [docs/LEGION.md](https://github.com/MultiAgency/legion-social/blob/staging/docs/LEGION.md).

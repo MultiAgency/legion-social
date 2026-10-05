@@ -427,11 +427,30 @@ pub async fn posts_batch(app: App, body: web::Json<BatchRequest>) -> HttpRespons
     })())
 }
 
-pub async fn hashtag(app: App, path: web::Path<String>, q: web::Query<ListQuery>) -> HttpResponse {
+pub async fn hashtag(
+    app: App,
+    path: web::Path<String>,
+    q: web::Query<ListQuery>,
+    feed: web::Query<crate::legion::feeds::FeedQuery>,
+) -> HttpResponse {
     respond((|| {
         let tag = path.trim_start_matches('#').to_lowercase();
         let state = app.state.read();
-        let entries = state.hashtag_feed(&tag, q.cursor()?, q.limit());
+        let feed = feed.channel().map_err(ApiError::bad_request)?;
+        let entries = match feed {
+            None => state.hashtag_feed(&tag, q.cursor()?, q.limit()),
+            Some(feed) => state.feed_hashtag(feed, &tag, q.cursor()?, q.limit()),
+        };
+        feed_page(&app, &state, &q, entries)
+    })())
+}
+
+/// `GET /v1/feed/channel/{account}`: a channel's posts (docs/LEGION.md §3).
+pub async fn feed_channel(app: App, path: web::Path<String>, q: web::Query<ListQuery>) -> HttpResponse {
+    respond((|| {
+        let channel = account_param(&path)?;
+        let state = app.state.read();
+        let entries = state.feed_channel(channel, q.cursor()?, q.limit());
         feed_page(&app, &state, &q, entries)
     })())
 }
@@ -696,6 +715,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
         .route("/v1/feed/global", web::get().to(feed_global))
         .route("/v1/feed/following/{account}", web::get().to(feed_following))
         .route("/v1/feed/for_you", web::get().to(feed_for_you))
+        .route("/v1/feed/channel/{account}", web::get().to(feed_channel))
         .route("/v1/accounts/{account}", web::get().to(account))
         .route("/v1/accounts/{account}/{list}", web::get().to(account_list))
         .route("/v1/posts/batch", web::post().to(posts_batch))

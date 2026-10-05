@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, Link2, MapPin } from "lucide-react";
 import { useAccount } from "@/components/providers/account-provider";
 import { profileQuery } from "@/lib/api/queries";
+import { useFeedTab } from "@/components/legion/feed-tab";
 import { isNotFound } from "@/lib/api/client";
 import { isGatewayUrl, UserAvatar } from "@/components/account/user-avatar";
 import { FollowButton } from "@/components/account/follow-button";
@@ -177,12 +178,14 @@ export function ProfileTabs({ account }: { account: string }) {
   const pathname = usePathname();
   const base = `/${account}`;
   const isList = pathname === `${base}/followers` || pathname === `${base}/following`;
+  const feedTab = useFeedTab(account, pathname);
   const tabs = isList
     ? [
         { href: `${base}/followers`, label: "Followers" },
         { href: `${base}/following`, label: "Following" },
       ]
     : [
+        ...(feedTab ? [feedTab] : []),
         { href: base, label: "Posts" },
         { href: `${base}/replies`, label: "Replies" },
         { href: `${base}/media`, label: "Media" },

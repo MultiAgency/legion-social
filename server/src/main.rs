@@ -69,7 +69,7 @@ async fn main() -> Result<()> {
     init_tracing();
 
     let config = Arc::new(Config::from_env()?);
-    let state = Arc::new(RwLock::new(State::new()));
+    let state = Arc::new(RwLock::new(legion::new_state()?));
 
     let started = Instant::now();
     let (log, last_block) = {

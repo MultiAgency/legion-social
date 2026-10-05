@@ -141,6 +141,9 @@ pub struct PostDto<'a> {
     pub quote: Option<QuoteDto<'a>>,
     pub mentions: Vec<&'a str>,
     pub hashtags: Vec<&'a str>,
+    /// The feed the post was written to; absent on `social` (docs/LEGION.md §3).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<&'a str>,
     pub counts: PostCounts,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub viewer: Option<PostViewer>,
@@ -338,6 +341,7 @@ impl<'a> Ctx<'a> {
             quote,
             mentions: body.mentions.iter().map(|&a| &*self.state.account(a).name).collect(),
             hashtags: body.hashtags.iter().map(|t| &**t).collect(),
+            channel: self.state.channel_of(pid),
             counts: {
                 let (likes, reposts, replies, quotes) = self.state.post_counts(pid);
                 PostCounts { replies, reposts, likes, quotes }

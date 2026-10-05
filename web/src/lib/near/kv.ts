@@ -7,6 +7,12 @@
 import { hasLoneSurrogate, LIMITS, validateEntry } from "@/lib/social/standard";
 import { SigningError } from "./errors";
 import { sendSocialCall, type SendOptions } from "./queue";
+import { sendChannelCall } from "@/lib/legion/feed-send";
+
+export interface WriteOptions extends SendOptions {
+  /** Write to this channel account instead of `social` (docs/LEGION.md §3). */
+  channel?: string | null;
+}
 
 export type KvData = Record<string, unknown>;
 
@@ -58,12 +64,15 @@ export function validateKvArgs(data: KvData, author?: string): Uint8Array {
  * Validates and sends one `__fastdata_kv` call to `social` signed by the account's app key.
  * Resolves with the transaction hash once included.
  */
-export function writeKv(accountId: string, data: KvData, opts?: SendOptions): Promise<string> {
+export function writeKv(accountId: string, data: KvData, opts: WriteOptions = {}): Promise<string> {
   let bytes: Uint8Array;
   try {
     bytes = validateKvArgs(data, accountId);
   } catch (err) {
     return Promise.reject(err);
   }
-  return sendSocialCall(accountId, "__fastdata_kv", bytes, opts);
+  const { channel, ...send } = opts;
+  return channel
+    ? sendChannelCall(accountId, channel, bytes, send)
+    : sendSocialCall(accountId, "__fastdata_kv", bytes, send);
 }

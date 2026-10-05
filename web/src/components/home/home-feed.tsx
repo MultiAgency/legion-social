@@ -9,6 +9,7 @@ import { Feed } from "@/components/feed/feed";
 import { NonMemberNotice } from "@/components/legion/non-member-notice";
 import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
 import { homeFeed, qk } from "@/lib/api/queries";
+import { legionFeed } from "@/lib/legion/feed";
 import { siteName } from "@/lib/brand";
 import { SignInHero } from "./sign-in-hero";
 
@@ -36,11 +37,16 @@ export function HomeFeed() {
               ? [{ href: "/?feed=following", label: "Following", active: tab === "following" }]
               : []),
             { href: "/?feed=latest", label: "Latest", active: tab === "latest" },
+            ...(legionFeed ? [{ href: "/?feed=legion", label: "Legion", active: tab === "legion" }] : []),
           ]}
         />
       </PageHeader>
       {accountId && <NonMemberNotice accountId={accountId} />}
-      {accountId ? <Composer variant="inline" /> : <SignInHero />}
+      {accountId ? (
+        <Composer key={tab} variant="inline" channel={tab === "legion" ? legionFeed : null} />
+      ) : (
+        <SignInHero />
+      )}
       <Feed
         key={`${tab}:${accountId ?? ""}`}
         spec={spec}
