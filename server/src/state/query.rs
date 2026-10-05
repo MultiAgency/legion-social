@@ -172,8 +172,7 @@ impl State {
             .collect()
     }
 
-    /// Posts tagged `tag` in one feed: `social` (`None`) or a channel (docs/LEGION.md §3).
-    pub fn hashtag_feed(&self, tag: &str, feed: Option<&str>, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
+    pub fn hashtag_feed(&self, tag: &str, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
         let Some(list) = self.hashtags.get(tag) else {
             return vec![];
         };
@@ -181,7 +180,7 @@ impl State {
             .take(MAX_SCAN)
             .filter(|&&(_, pid)| {
                 self.is_visible(pid)
-                    && self.channel_of(pid) == feed
+                    && self.on_social(pid)
                     && self.body(pid).is_some_and(|b| b.hashtags.iter().any(|t| &**t == tag))
             })
             .map(|&(seq, pid)| FeedEntry::Post { seq, pid })

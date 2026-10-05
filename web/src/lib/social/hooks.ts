@@ -441,7 +441,8 @@ export function useEditPost() {
       });
       let hash: string;
       try {
-        hash = await writeKv(accountId, data, { channel: writeFeed(post.channel) });
+        // The post's own feed: the server reports only unclaimed feeds (docs/LEGION.md §3).
+        hash = await writeKv(accountId, data, { channel: post.channel });
       } catch (err) {
         patchPostEverywhere(qc, post.key, restore);
         throw err;
@@ -474,7 +475,7 @@ export function useDeletePost() {
       }
       try {
         const { writeKv } = await loadKv();
-        const hash = await writeKv(accountId, data, { channel: writeFeed(post.channel) });
+        const hash = await writeKv(accountId, data, { channel: post.channel });
         toast.success("Post deleted", {
           description: "Earlier versions stay in the public FastData history.",
         });

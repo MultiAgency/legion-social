@@ -437,7 +437,10 @@ pub async fn hashtag(
         let tag = path.trim_start_matches('#').to_lowercase();
         let state = app.state.read();
         let feed = feed.channel().map_err(ApiError::bad_request)?;
-        let entries = state.hashtag_feed(&tag, feed, q.cursor()?, q.limit());
+        let entries = match feed {
+            None => state.hashtag_feed(&tag, q.cursor()?, q.limit()),
+            Some(feed) => state.feed_hashtag(feed, &tag, q.cursor()?, q.limit()),
+        };
         feed_page(&app, &state, &q, entries)
     })())
 }

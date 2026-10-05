@@ -66,8 +66,9 @@ A member can post to Legion only. The post is written exactly as a social-kv/1 p
 (`docs/STANDARD.md` §3.2–3.3), but as a `__fastdata_kv` call to the account **`legion`** instead
 of `social`.
 
-A **feed** is an unclaimed top-level name, such as `legion`: nobody owns it, like `social`. Because
-the account doesn't exist, every receipt sent to it fails on chain with `AccountDoesNotExist`. That's
+A **feed** is an account that doesn't exist (an unclaimed name), such as `legion`: nobody owns it,
+like `social`. Because the account doesn't exist, every receipt sent to it fails on chain with
+`AccountDoesNotExist`. That's
 expected: FastData indexes the call's arguments whatever the receipt's outcome, as it does for
 `social` (whose receipts fail with `CodeDoesNotExist`).
 
@@ -75,9 +76,14 @@ expected: FastData indexes the call's arguments whatever the receipt's outcome, 
 `AccountDoesNotExist` for that receiver.** Writes to accounts that exist, with or without a
 contract, belong to other FastData apps: reading them would let those apps fix a post's feed or use
 up an author's daily limits. The outcome is part of chain data, so a replay reads exactly the same
-writes. If someone ever claims a feed's name, its receipts stop failing that way and the indexer
-stops reading that feed by itself. Feeds are part of Legion: with Legion off (no
-`LEGION_CONTRACTS`), only `social` is read and every API answer matches upstream.
+writes. If someone ever creates the account, its receipts stop failing that way and the indexer
+stops reading that feed by itself. A top-level name such as `legion` can be created only through
+the registrar; a sub-account such as `feed.example.near` can be created at any time by the owner of
+`example.near`, which makes it a weaker choice for a feed.
+
+Feeds are part of Legion. With Legion off (no `LEGION_CONTRACTS`), the tailer reads `social` only,
+and feed rows already in the event log are skipped on replay, so state, counts and every API answer
+match upstream. They stay in the log: with Legion back on, a replay reads them again.
 
 - **Only posts move.** Profiles, follows, likes and reposts stay on `social`. In a feed account,
   only `post/{post_id}` and `reply/…` keys count; every other key sent there is ignored. Media
@@ -93,11 +99,12 @@ stops reading that feed by itself. Feeds are part of Legion: with Legion off (no
   feed; without `channel` it lists `social` only, as before. Trending counts `social` only.
 - **Other feeds work the same way.** Any unclaimed name is a feed of its own: the web shows it as
   that name's Feed tab (`/{account_id}/feed`), and a name with no profile opens on it. Post objects
-  carry `channel` (the feed) only for feed posts. The web writes only to its configured Legion feed
-  (`NEXT_PUBLIC_LEGION_FEED`); a reply or edit of a post in any other feed goes to `social`.
+  carry `channel` (the feed) only for feed posts. The web posts and replies only to its configured
+  Legion feed (`NEXT_PUBLIC_LEGION_FEED`; a reply to a post in another feed goes to `social`), and
+  sends edits and deletes to the post's own feed. Unset, the web shows no feeds at all.
 - **Limits count across feeds.** The per-account daily limits (social-kv/1 §6) cover every feed
   together.
 - **Writing needs one more key.** A function-call access key names one receiver, so posting to
   `legion` needs a key with receiver `legion` (method `__fastdata_kv`), approved once.
-- **No code runs on a feed.** An unclaimed name has no account and no contract, as long as nobody
-  registers it, and once someone does, it's no longer read as a feed.
+- **No code runs on a feed.** An unclaimed name has no account and no contract, and once someone
+  creates it, it's no longer read as a feed.

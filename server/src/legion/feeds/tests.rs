@@ -24,6 +24,22 @@ fn block(height: u64, actions: Vec<(&str, Option<&str>, Value)>) -> LogBlock {
     }
 }
 
+/// A state with Legion on, where feeds are read.
+fn legion_state() -> State {
+    let mut state = State::new();
+    state.enable_legion();
+    state
+}
+
+/// Applies a block, then makes every account a member, so membership doesn't hide anything here.
+fn apply(state: &mut State, block: LogBlock) {
+    state.apply_block(&block);
+    let aids: Vec<crate::state::Aid> = state.aid_by_name.values().copied().collect();
+    for aid in aids {
+        state.record_check(aid, crate::legion::Check { rank: Some(crate::legion::Rank::Initiate), checked_ms: 0 });
+    }
+}
+
 fn texts(state: &State, entries: Vec<FeedEntry>) -> Vec<String> {
     entries
         .into_iter()
@@ -41,8 +57,8 @@ fn text(state: &State, author: &str, id: u64) -> Option<String> {
 
 #[test]
 fn channel_post_is_indexed_with_its_channel() {
-    let mut state = State::new();
-    state.apply_block(&block(1, vec![("a.near", Some("guild.near"), json!({"post/1": {"text": "in guild"}}))]));
+    let mut state = legion_state();
+    apply(&mut state, block(1, vec![("a.near", Some("guild.near"), json!({"post/1": {"text": "in guild"}}))]));
     let p = pid(&state, "a.near", 1);
     assert_eq!(state.channel_of(p), Some("guild.near"));
     assert!(!state.on_social(p));
@@ -52,8 +68,8 @@ fn channel_post_is_indexed_with_its_channel() {
 
 #[test]
 fn only_post_keys_count_in_a_channel() {
-    let mut state = State::new();
-    state.apply_block(&block(
+    let mut state = legion_state();
+    apply(&mut state, block(
         1,
         vec![
             ("a.near", Some("guild.near"), json!({"profile/name": "A", "graph/follow/b.near": {}, "apps": {"x": 1}})),
@@ -72,10 +88,10 @@ fn only_post_keys_count_in_a_channel() {
 
 #[test]
 fn first_write_fixes_the_channel() {
-    let mut state = State::new();
-    state.apply_block(&block(1, vec![("a.near", Some("guild.near"), json!({"post/1": {"text": "v1"}}))]));
+    let mut state = legion_state();
+    apply(&mut state, block(1, vec![("a.near", Some("guild.near"), json!({"post/1": {"text": "v1"}}))]));
     // The same key from social or another channel is ignored, edit or delete.
-    state.apply_block(&block(
+    apply(&mut state, block(
         2,
         vec![
             ("a.near", None, json!({"post/1": {"text": "from social"}})),
@@ -85,21 +101,21 @@ fn first_write_fixes_the_channel() {
     assert_eq!(text(&state, "a.near", 1).as_deref(), Some("v1"));
     assert_eq!(state.txs["tx2-0"].actions[0].keys[0].status, KeyStatus::Ignored);
     // An edit from its own channel applies, and so does a delete.
-    state.apply_block(&block(3, vec![("a.near", Some("guild.near"), json!({"post/1": {"text": "v2"}}))]));
+    apply(&mut state, block(3, vec![("a.near", Some("guild.near"), json!({"post/1": {"text": "v2"}}))]));
     assert_eq!(text(&state, "a.near", 1).as_deref(), Some("v2"));
-    state.apply_block(&block(4, vec![("a.near", Some("guild.near"), json!({"post/1": null}))]));
+    apply(&mut state, block(4, vec![("a.near", Some("guild.near"), json!({"post/1": null}))]));
     assert_eq!(text(&state, "a.near", 1), None);
     // A social post can't be moved into a channel either.
-    state.apply_block(&block(5, vec![("b.near", None, json!({"post/7": {"text": "social"}}))]));
-    state.apply_block(&block(6, vec![("b.near", Some("guild.near"), json!({"post/7": {"text": "moved"}}))]));
+    apply(&mut state, block(5, vec![("b.near", None, json!({"post/7": {"text": "social"}}))]));
+    apply(&mut state, block(6, vec![("b.near", Some("guild.near"), json!({"post/7": {"text": "moved"}}))]));
     assert_eq!(text(&state, "b.near", 7).as_deref(), Some("social"));
     assert!(state.on_social(pid(&state, "b.near", 7)));
 }
 
 #[test]
 fn global_and_for_you_stay_on_social() {
-    let mut state = State::new();
-    state.apply_block(&block(
+    let mut state = legion_state();
+    apply(&mut state, block(
         1,
         vec![
             ("a.near", None, json!({"post/1": {"text": "social"}})),
@@ -118,11 +134,11 @@ fn global_and_for_you_stay_on_social() {
 
 #[test]
 fn channel_feed_pages_newest_first_and_hides_the_denylisted() {
-    let mut state = State::new();
+    let mut state = legion_state();
     for i in 1..=3u64 {
-        state.apply_block(&block(i, vec![("a.near", Some("guild.near"), json!({ format!("post/{i}"): {"text": format!("p{i}")} }))]));
+        apply(&mut state, block(i, vec![("a.near", Some("guild.near"), json!({ format!("post/{i}"): {"text": format!("p{i}")} }))]));
     }
-    state.apply_block(&block(4, vec![("spam.near", Some("guild.near"), json!({"post/1": {"text": "spam"}}))]));
+    apply(&mut state, block(4, vec![("spam.near", Some("guild.near"), json!({"post/1": {"text": "spam"}}))]));
     state.set_hidden(&["spam.near".to_string()]);
     let first = state.feed_channel("guild.near", None, 2);
     assert_eq!(texts(&state, first.clone()), vec!["p3", "p2"]);
@@ -176,8 +192,8 @@ fn without_channel_writes_nothing_changes() {
 
 #[test]
 fn hashtags_are_scoped_to_one_feed() {
-    let mut state = State::new();
-    state.apply_block(&block(
+    let mut state = legion_state();
+    apply(&mut state, block(
         1,
         vec![
             ("a.near", None, json!({"post/1": {"text": "social #near"}})),
@@ -186,16 +202,16 @@ fn hashtags_are_scoped_to_one_feed() {
         ],
     ));
     // No feed: social only, as before channels.
-    assert_eq!(texts(&state, state.hashtag_feed("near", None, None, 10)), vec!["social #near"]);
-    assert_eq!(texts(&state, state.hashtag_feed("near", Some("legion.near"), None, 10)), vec!["legion #near"]);
-    assert_eq!(texts(&state, state.hashtag_feed("near", Some("other.near"), None, 10)), vec!["other #near"]);
-    assert!(state.hashtag_feed("near", Some("nobody.near"), None, 10).is_empty());
+    assert_eq!(texts(&state, state.hashtag_feed("near", None, 10)), vec!["social #near"]);
+    assert_eq!(texts(&state, state.feed_hashtag("legion.near", "near", None, 10)), vec!["legion #near"]);
+    assert_eq!(texts(&state, state.feed_hashtag("other.near", "near", None, 10)), vec!["other #near"]);
+    assert!(state.feed_hashtag("nobody.near", "near", None, 10).is_empty());
 }
 
 #[test]
 fn trending_counts_social_only() {
-    let mut state = State::new();
-    state.apply_block(&block(
+    let mut state = legion_state();
+    apply(&mut state, block(
         1,
         vec![
             ("a.near", None, json!({"post/1": {"text": "#near"}})),
@@ -246,7 +262,7 @@ fn only_an_unclaimed_receiver_is_a_feed() {
 fn writes_to_existing_receivers_never_reach_the_state() {
     // What the tailer does: an `Other` receipt is skipped before parsing, so it neither fixes a
     // post's feed nor counts toward its author's quota.
-    let mut state = State::new();
+    let mut state = legion_state();
     let writes = [
         ("app.near", failed(ActionErrorKind::AccountAlreadyExists { account_id: "app.near".parse().unwrap() })),
         ("legion", missing("legion")),
@@ -259,7 +275,7 @@ fn writes_to_existing_receivers_never_reach_the_state() {
             actions.extend(channel_action(action, &feed));
         }
     }
-    state.apply_block(&LogBlock { b: 1, t: T0 * 1_000_000, a: actions });
+    apply(&mut state, LogBlock { b: 1, t: T0 * 1_000_000, a: actions });
     assert_eq!(text(&state, "a.near", 1).as_deref(), Some("to legion"));
     assert_eq!(state.channel_of(pid(&state, "a.near", 1)), Some("legion"));
     assert_eq!(state.counts.posts, 1);
@@ -284,7 +300,51 @@ fn legion_off_reads_social_only_and_matches_upstream() {
     assert_eq!(state.channel_of(p), None);
     assert!(state.on_social(p));
     assert_eq!(texts(&state, state.feed_global(None, 10)), vec!["hello #near"]);
-    assert_eq!(texts(&state, state.hashtag_feed("near", None, None, 10)), vec!["reply #near", "hello #near"]);
+    assert_eq!(texts(&state, state.hashtag_feed("near", None, 10)), vec!["reply #near", "hello #near"]);
     assert_eq!(state.trending(T0 + 10_000, 86_400_000, 10), vec![("near".to_string(), 2)]);
     assert!(state.feed_channel("legion", None, 10).is_empty());
+}
+
+/// What the API answers about this state: profiles, a thread, global, search, hashtags, status.
+fn api_view(state: &State) -> Value {
+    use crate::api::dto::Ctx;
+    let ctx = Ctx { state, viewer: None, gateway: "https://gw", site_hosts: &[], unfurl: None };
+    let profile = |name: &'static str| serde_json::to_value(ctx.profile(name, state.aid(name))).unwrap();
+    let root = pid(state, "a.near", 1);
+    json!({
+        "a": profile("a.near"),
+        "b": profile("b.near"),
+        "root": serde_json::to_value(ctx.post(root, true)).unwrap(),
+        "replies": serde_json::to_value(ctx.feed(&state.post_replies(root, 0, 100).0)).unwrap(),
+        "global": serde_json::to_value(ctx.feed(&state.feed_global(None, 100))).unwrap(),
+        "b_posts": serde_json::to_value(ctx.feed(&state.account_feed(state.aid("b.near").unwrap(), crate::state::query::ProfileTab::Posts, None, 100))).unwrap(),
+        "b_replies": serde_json::to_value(ctx.feed(&state.account_feed(state.aid("b.near").unwrap(), crate::state::query::ProfileTab::Replies, None, 100))).unwrap(),
+        "search": serde_json::to_value(ctx.feed(&state.search_posts("legion", None, 100))).unwrap(),
+        "tag": serde_json::to_value(ctx.feed(&state.hashtag_feed("near", None, 100))).unwrap(),
+        "counts": serde_json::to_value(state.counts).unwrap(),
+    })
+}
+
+#[test]
+fn a_log_with_feed_rows_replays_as_upstream_with_legion_off() {
+    let social = vec![
+        ("a.near", None, json!({"post/1": {"text": "root #near"}, "profile/name": "A"})),
+        ("b.near", None, json!({"profile/name": "B"})),
+    ];
+    let feed = vec![
+        ("b.near", Some("legion"), json!({"post/2": {"text": "legion reply #near", "reply_to": "a.near/1"}})),
+        ("b.near", Some("legion"), json!({"post/3": {"text": "legion post #near", "quote": "a.near/1"}})),
+    ];
+    // The log as it was written with Legion on: one social block, one feed block.
+    let mut with_feed = State::new();
+    with_feed.apply_block(&block(1, social.clone()));
+    with_feed.apply_block(&block(2, feed));
+    // Upstream never saw the feed block.
+    let mut upstream = State::new();
+    upstream.apply_block(&block(1, social));
+    upstream.apply_block(&block(2, vec![]));
+    assert!(with_feed.legion.is_none());
+    assert_eq!(api_view(&with_feed), api_view(&upstream));
+    // No answer mentions a feed.
+    assert!(!api_view(&with_feed).to_string().contains("channel"));
 }

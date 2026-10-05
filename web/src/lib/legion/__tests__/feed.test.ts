@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { isAccountId } from "@/lib/social/standard";
 import { configured, feedHref, hashtagHref, legionTab, writeFeed } from "../feed";
-import { channelKeySlot } from "../feed-send";
+import { feedKeyId } from "../feed-send";
 
 describe("Legion feed", () => {
   it("is configured only by a valid account", () => {
@@ -38,10 +39,10 @@ describe("feed links", () => {
     expect(feedHref("feed.near")).toBe("/feed.near/feed");
   });
 
-  it("keeps channel keys apart from the social posting key", () => {
-    const slot = channelKeySlot("a.near", "feed.near");
-    expect(slot).toBe("nsk:ch:v1:a.near:feed.near");
-    // The social key list scans `nsk:v1:`; a channel key must never look like one.
-    expect(slot.startsWith("nsk:v1:")).toBe(false);
+  it("keeps feed keys out of the keystore's account list", () => {
+    const id = feedKeyId("a.near", "legion");
+    expect(id).toBe("a.near:legion");
+    // listKeyAccounts keeps ids that are account ids; `:` never appears in one.
+    expect(isAccountId(id)).toBe(false);
   });
 });

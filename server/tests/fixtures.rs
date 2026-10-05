@@ -65,7 +65,7 @@ fn feed(state: &State, spec: &str) -> Vec<String> {
     let entries = match parts.as_slice() {
         ["global"] => state.feed_global(None, 100),
         ["following", a] => state.feed_following(aid(state, a), None, 100),
-        ["hashtag", t] => state.hashtag_feed(t, None, None, 100),
+        ["hashtag", t] => state.hashtag_feed(t, None, 100),
         ["replies", k] => state.post_replies(pid(state, k), 0, 100).0,
         ["quotes", k] => state.post_quotes(pid(state, k), None, 100),
         ["likes", a] => state.account_likes(aid(state, a), None, 100),

@@ -21,9 +21,9 @@ export function legionTab(
 }
 
 /**
- * The feed a write goes to: the configured Legion feed, and nothing else. A post the server says
- * is in some other feed is written to `social` instead, so a reply or edit never lands silently
- * on an account this site didn't choose.
+ * The feed a new post or reply goes to: the configured Legion feed, and nothing else. A reply to a
+ * post in some other feed goes to `social`, so it never lands on an account this site didn't
+ * choose. (Edits and deletes go to the post's own feed.)
  */
 export function writeFeed(channel: string | null | undefined, account: string | null = legionFeed): string | null {
   return channel && channel === account ? channel : null;

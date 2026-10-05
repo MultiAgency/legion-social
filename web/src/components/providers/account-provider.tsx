@@ -18,6 +18,7 @@ import {
   removeKey,
   subscribeKeys,
 } from "@/lib/near/keystore";
+import { removeFeedKeys } from "@/lib/legion/feed-send";
 import { viewAccessKey, type AccessKeyView } from "@/lib/near/rpc";
 import { loadWallet, preloadWallet } from "@/lib/near/wallet-loader";
 import { isOnboarded, readLocal, subscribeLocal, useHydrated, writeLocal } from "@/lib/local-store";
@@ -319,6 +320,7 @@ export function AccountProvider({
   const finishSignOut = React.useCallback(
     (a: string) => {
       removeKey(a);
+      removeFeedKeys(a);
       const others = listKeyAccounts().filter((x) => x !== a);
       applySession(others[0] ?? null);
       void loadWallet()

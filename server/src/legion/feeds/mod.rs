@@ -1,11 +1,13 @@
-//! Feeds (docs/LEGION.md §3): posts written to an unclaimed top-level name instead of `social`.
+//! Feeds (docs/LEGION.md §3): posts written to an account that doesn't exist (an unclaimed name,
+//! such as `legion`) instead of `social`.
 //!
 //! With Legion on, the tailer keeps the post rows of `__fastdata_kv` actions whose receipt failed
 //! with `AccountDoesNotExist` for their receiver, and tags them with that feed (`LogAction::c`).
 //! Writes to existing accounts are other apps' and are never read. The first write of an author's
 //! `post/{id}` fixes its feed; global, For You and trending stay `social`-only;
-//! `GET /v1/feed/channel/{account}` lists a feed. With Legion off, or with no feed writes,
-//! everything behaves exactly as upstream.
+//! `GET /v1/feed/channel/{account}` lists a feed. With Legion off, the tailer reads `social` only
+//! and replay skips feed rows already in the log (Legion is on before replay: `legion::new_state`),
+//! so everything behaves exactly as upstream.
 
 use crate::ingest::fastdata::{ActionStatus, LogAction};
 use fastnear_primitives::near_primitives::errors::{ActionErrorKind, TxExecutionError};
@@ -15,6 +17,9 @@ use crate::model::keys::{parse_key, Key};
 use crate::state::query::FeedEntry;
 use crate::state::{BlockEffects, KeyStatus, Pid, PostKey, Seq, State};
 use rustc_hash::FxHashMap;
+
+/// Upper bound on entries inspected per request, as in `state::query`.
+const MAX_SCAN: usize = 100_000;
 
 /// `?channel={account}`: scopes a list to one channel feed; absent or empty is `social`.
 #[derive(serde::Deserialize)]
@@ -112,6 +117,11 @@ impl State {
         raw: &str,
         fx: &mut BlockEffects,
     ) -> (KeyStatus, Option<String>) {
+        // Feeds are part of Legion: with it off, a feed row in the log is skipped like any write
+        // upstream never reads, so state, counters and answers all match upstream.
+        if channel.is_some() && self.legion.is_none() {
+            return (KeyStatus::Ignored, None);
+        }
         let Key::Post(id) = parse_key(key) else {
             return match channel {
                 None => self.apply_row(seq, ms, author, key, raw, fx),
@@ -143,6 +153,26 @@ impl State {
         !self.channels.by_post.contains_key(&pid)
     }
 
+    /// Posts tagged `tag` in one feed, newest first (`hashtag_feed` is `social`'s).
+    pub fn feed_hashtag(&self, feed: &str, tag: &str, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
+        let Some(list) = self.hashtags.get(tag) else {
+            return vec![];
+        };
+        let end = before.map_or(list.len(), |b| list.partition_point(|e| e.0 < b));
+        list[..end]
+            .iter()
+            .rev()
+            .take(MAX_SCAN)
+            .filter(|&&(_, pid)| {
+                self.is_visible(pid)
+                    && self.channel_of(pid) == Some(feed)
+                    && self.post(pid).body.as_ref().is_some_and(|b| b.hashtags.iter().any(|t| &**t == tag))
+            })
+            .map(|&(seq, pid)| FeedEntry::Post { seq, pid })
+            .take(limit)
+            .collect()
+    }
+
     /// A channel's visible posts and replies, newest first.
     pub fn feed_channel(&self, channel: &str, before: Option<Seq>, limit: usize) -> Vec<FeedEntry> {
         let Some(posts) = self.channels.feeds.get(channel) else {
@@ -152,6 +182,7 @@ impl State {
         posts[..end]
             .iter()
             .rev()
+            .take(MAX_SCAN)
             .filter(|&&(_, pid)| self.is_visible(pid))
             .map(|&(seq, pid)| FeedEntry::Post { seq, pid })
             .take(limit)
