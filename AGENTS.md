@@ -1,6 +1,6 @@
 # Working on legion-social
 
-Read by Claude Code (through `CLAUDE.md`) and by MultiAgency's agents. legion-social is a NEAR Legion layer on near.social: a fork of [near-social-kv](https://github.com/evgenykuzyakov/near-social-kv) whose indexer shows only Legion members, ranked by their soulbound tokens, and adds Legion features. Members' writes are ordinary social-kv/1 writes to `social`, so near.social shows them too. The README explains the system; `docs/STANDARD.md` is the data standard, `docs/LEGION.md` the Legion extension to it.
+Read by Claude Code (through `CLAUDE.md`) and by MultiAgency's agents. legion-social runs MultiSocial: near.social with feeds, every community its own. It's a fork of [near-social-kv](https://github.com/evgenykuzyakov/near-social-kv) that shows everyone, as near.social does, and adds feeds picked by who wrote a post (NEAR Legion members, `.agency` names, NearBuilders members), members-only posts sent to the `legion` feed account, and Legion ranks from soulbound tokens. Ordinary posts are social-kv/1 writes to `social`, so near.social shows them too. The README explains the system; `docs/STANDARD.md` is the data standard, `docs/LEGION.md` the extensions to it.
 
 ## Before you change code
 
