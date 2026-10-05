@@ -198,3 +198,19 @@ fn a_hidden_reply_doesnt_count() {
     member(&mut state, "x.near");
     assert_eq!(state.reply_count(parent), 2);
 }
+
+#[test]
+fn a_hidden_post_sends_no_notifications() {
+    let mut state = legion_state(vec![
+        block(1, vec![("m.near", Some("legion"), json!({"post/1": {"text": "members only"}}))]),
+        block(2, vec![("x.near", Some("legion"), json!({"post/1": {"text": "hey @m.near", "reply_to": "m.near/1"}}))]),
+        block(3, vec![("x.near", Some("legion"), json!({"post/2": {"text": "quoting", "quote": "m.near/1"}}))]),
+    ]);
+    member(&mut state, "m.near");
+    let m = state.aid("m.near").unwrap();
+    // The non-member's reply, mention and quote are hidden, so they notify nobody.
+    assert!(state.notifications(m, None, 10).is_empty());
+    // Once the author becomes a member, they show.
+    member(&mut state, "x.near");
+    assert!(!state.notifications(m, None, 10).is_empty());
+}
