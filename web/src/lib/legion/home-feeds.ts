@@ -26,7 +26,7 @@ export const HOME_FEEDS: HomeFeedInfo[] = [
   {
     id: "legion",
     label: "Legion",
-    note: "Legion token holders. Members-only posts stay off near.social.",
+    note: "Posts by Legion token holders. Legion-only posts don't appear on near.social.",
     howTo: { text: "To post, mint an Initiate token at", href: "https://nearlegion.com/mint", link: "nearlegion.com/mint" },
   },
   {
@@ -81,7 +81,7 @@ export function withTag(text: string, tag: string): string {
 
 /**
  * Where a composer posts: the feed account it starts on (`null` is `social`), whether it offers
- * the Members only / Public choice, the tag a public post gets, and what its button says.
+ * the Legion only / Also on near.social choice, the tag a near.social post gets, and what its button says.
  */
 export interface Destination {
   channel: string | null;
@@ -100,7 +100,7 @@ export function destinationFor(id: HomeFeedId, account: string | null = legionFe
         channel: account,
         audience: true,
         publicTag: LEGION_TAG,
-        label: (channel) => (channel ? "Post to members" : "Post in public"),
+        label: (channel) => (channel ? "Post to Legion" : "Post to Legion and near.social"),
       };
     case "builders":
       return { channel: null, audience: false, label: () => "Post to Builders" };
@@ -111,7 +111,7 @@ export function destinationFor(id: HomeFeedId, account: string | null = legionFe
 
 /**
  * Extra feeds a new post belongs on right away, by the server's rule (docs/LEGION.md §4.1): the
- * Legion feed, for a top-level post by a member that's members-only or tagged #legion.
+ * Legion feed, for a top-level post by a member that's Legion-only or tagged #legion.
  */
 export function pickedFeedsFor(
   post: { channel: string | null; text: string; reply: boolean; member: boolean },

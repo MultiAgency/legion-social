@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 import { LegionMark } from "./legion-mark";
 
 /**
- * The Legion feed's audience (docs/LEGION.md §4.1): Members only (the `legion` feed account) or
- * Public (`social`, tagged #legion). `value` is the feed account: `null` is Public. A reply goes
+ * Where a Legion post goes (docs/LEGION.md §4.1): Legion only (the `legion` feed account) or also
+ * on near.social (`social`, tagged #legion). Both are public; only where they show differs. `value` is the feed account: `null` is Public. A reply goes
  * where its parent is, so it shows that instead of a choice.
  */
 export function AudienceToggle({
@@ -31,8 +31,8 @@ export function AudienceToggle({
     ) : null;
   }
   const options = [
-    { channel: legionFeed, label: "Members only", note: "Stays off near.social." },
-    { channel: null, label: "Public", note: "Also on near.social, with #legion." },
+    { channel: legionFeed, label: "Legion only", note: "Stays off near.social." },
+    { channel: null, label: "Also on near.social", note: "Tagged #legion." },
   ];
   const note = options.find((o) => o.channel === value)?.note;
   return (

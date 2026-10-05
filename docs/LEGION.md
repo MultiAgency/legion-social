@@ -8,7 +8,7 @@ as near.social does, and adds feeds that pick posts by who wrote them. The first
 1. **Membership:** a NEAR Legion member's rank, derived from chain. Nothing is written.
 2. **`legion/` keys:** Legion data near.social clients ignore (social-kv/1 §2: unknown keys are
    ignored).
-3. **Members-only posts:** posts sent to the feed account `legion` instead of `social`, kept off
+3. **Legion-only posts:** posts sent to the feed account `legion` instead of `social`, kept off
    near.social.
 4. **Feeds:** Everyone, Legion, .agency and Builders.
 
@@ -65,13 +65,13 @@ Example: `{"legion/skill/builder": {}, "legion/skill/connector": {}}`
 
 Every other key under `legion/` is reserved for later versions of this document.
 
-## 3. Members-only posts
+## 3. Legion-only posts
 
 A member can post to members only. The post is written exactly as a social-kv/1 post or reply
 (`docs/STANDARD.md` §3.2–3.3), but as a `__fastdata_kv` call to the account **`legion`** instead
 of `social`. `legion` is the server's `LEGION_FEED` (its default); the web's
-`NEXT_PUBLIC_LEGION_FEED` must name the same account, or the web would write members-only posts
-somewhere the server doesn't treat as the Legion feed. "Members only" means kept off near.social: the post is public chain data like any
+`NEXT_PUBLIC_LEGION_FEED` must name the same account, or the web would write Legion-only posts
+somewhere the server doesn't treat as the Legion feed. "Legion only" means kept off near.social: the post is public chain data like any
 other, readable by anyone through FastData.
 
 A **feed account** is an account that doesn't exist (an unclaimed name), such as `legion`: nobody
@@ -97,15 +97,15 @@ With Legion off:
   upstream.
 
 The event log keeps a feed-account action's rows under its own field (`c`), never in `r`, so a build
-that doesn't know feed accounts reads the action as empty instead of replaying members-only posts as
+that doesn't know feed accounts reads the action as empty instead of replaying Legion-only posts as
 `social`.
 
 **Only members' posts to `legion` are shown.** A post sent to `legion` by an account without a rank
 (§1) is shown nowhere on the site: not in its feeds, its author's profile, threads, search or
 anywhere else. It appears once the account becomes a member, since nothing was dropped. Such a reply doesn't count in its parent's reply
-count either, and the web doesn't offer a non-member the reply box on a members-only post.
+count either, and the web doesn't offer a non-member the reply box on a Legion-only post.
 
-Where members' members-only posts appear:
+Where members' Legion-only posts appear:
 
 | Shown | Not shown |
 |---|---|
@@ -141,7 +141,7 @@ only with Legion on.
 | Feed | Who posts | Where it shows | Endpoint |
 |---|---|---|---|
 | Everyone | Anyone with a NEAR account | Here and on near.social | upstream's: For you, Following, Latest |
-| Legion | Legion token holders | Members only by default; Public also goes to near.social, tagged #legion | `GET /v1/feed/legion` |
+| Legion | Legion token holders | Legion only by default; Also on near.social sends it to `social` too, tagged #legion | `GET /v1/feed/legion` |
 | .agency | Accounts named `*.agency` | Here and on near.social | `GET /v1/feed/names/agency` |
 | Builders | NearBuilders members | Here and on near.social | `GET /v1/feed/builders` |
 
@@ -149,7 +149,7 @@ only with Legion on.
 
 Posts sent to `legion` (§3), plus `social` posts tagged `#legion`, written by members (an account
 with a rank, §1). A non-member's post to `legion`, or with `#legion`, isn't in it. On the web the
-post box offers **Members only** (the default: sent to `legion`) or **Public** (sent to `social`,
+post box offers **Legion only** (the default: sent to `legion`) or **Also on near.social** (sent to `social`,
 with ` #legion` appended when the text doesn't have it), and shows only to members.
 
 ### 4.2 Names

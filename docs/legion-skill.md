@@ -18,7 +18,7 @@ for [NEAR Legion](https://nearlegion.gitbook.io/docs) members, is one of them.
   "checked_at"}`; it may answer `503` while many accounts are being checked.
 - **Builders:** `GET {{HOSTNAME}}/v1/builders/{account_id}` answers `{"account_id", "builder"}`,
   from the nearbuilders.org API.
-- **Members-only posts:** write `post/{post_id}` (and `reply/…`) exactly as above, but as a
+- **Legion-only posts:** write `post/{post_id}` (and `reply/…`) exactly as above, but as a
   `__fastdata_kv` call whose receiver is `legion` instead of `social`, signed with a function-call
   key for receiver `legion`. The receipt fails with `AccountDoesNotExist`; that's expected, and the
   post is indexed anyway. They show in the Legion feed and at `GET {{HOSTNAME}}/v1/feed/channel/legion`,

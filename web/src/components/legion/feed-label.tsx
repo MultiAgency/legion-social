@@ -2,12 +2,12 @@ import Link from "next/link";
 import { Hash, ShieldCheck } from "lucide-react";
 import { feedHref, legionFeed } from "@/lib/legion/feed";
 
-/** A feed's name: "Members only" for the Legion feed, else "@account". */
+/** A feed's name: "Legion only" for the Legion feed, else "@account". */
 export function feedName(channel: string): string {
-  return channel === legionFeed ? "Members only" : `@${channel}`;
+  return channel === legionFeed ? "Legion only" : `@${channel}`;
 }
 
-/** The small line on a feed post: "Members only" for the Legion feed, else "in @account". */
+/** The small line on a feed post: "Legion only" for the Legion feed, else "in @account". */
 export function FeedLabel({ channel }: { channel: string | null | undefined }) {
   if (!channel || !legionFeed) return null;
   const legion = channel === legionFeed;

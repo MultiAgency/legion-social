@@ -23,7 +23,7 @@ describe("home feeds", () => {
     const legion = destinationFor("legion", "legion")!;
     expect(legion.channel).toBe("legion");
     expect(legion.audience).toBe(true);
-    expect([legion.label("legion"), legion.label(null)]).toEqual(["Post to members", "Post in public"]);
+    expect([legion.label("legion"), legion.label(null)]).toEqual(["Post to Legion", "Post to Legion and near.social"]);
     expect(destinationFor("everyone", "legion")!.label(null)).toBe("Post to Everyone");
     expect(destinationFor("builders", "legion")!.channel).toBeNull();
     expect(destinationFor("agency", "legion")).toBeNull();

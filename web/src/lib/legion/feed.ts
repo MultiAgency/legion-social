@@ -2,7 +2,7 @@ import { isAccountId } from "@/lib/social/standard";
 
 /**
  * The Legion feed account (docs/LEGION.md §3), from `NEXT_PUBLIC_LEGION_FEED` (inlined at build
- * time). Unset or invalid, the web is upstream's: no home feeds, no members-only posts.
+ * time). Unset or invalid, the web is upstream's: no home feeds, no Legion-only posts.
  */
 export const legionFeed: string | null = configured(process.env.NEXT_PUBLIC_LEGION_FEED);
 

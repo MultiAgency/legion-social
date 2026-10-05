@@ -28,7 +28,7 @@ export function MembersOnlyReply({ className }: { className?: string }) {
     <p className={cn("flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground", className)}>
       <LegionMark className="size-4 flex-none rounded-[4px]" />
       <span>
-        Only Legion members can reply to members-only posts. Mint an Initiate token at{" "}
+        Only Legion members can reply to Legion-only posts. Mint an Initiate token at{" "}
         <a href={MINT_URL} target="_blank" rel="noopener noreferrer" className="text-link hover:underline">
           nearlegion.com/mint
         </a>
