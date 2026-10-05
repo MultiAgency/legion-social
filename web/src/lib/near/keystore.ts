@@ -14,10 +14,10 @@ import type { KeyPair, KeyPairString } from "@near-js/crypto";
 import { isAccountId } from "@/lib/social/standard";
 import { base58Decode, base58Encode } from "./base58";
 
-const PREFIX = "nsk:v1:";
+export const PREFIX = "nsk:v1:";
 const NEXT_PREFIX = "nsk:v1:next:";
 
-function storage(): Storage | null {
+export function storage(): Storage | null {
   try {
     return typeof window === "undefined" ? null : window.localStorage;
   } catch {

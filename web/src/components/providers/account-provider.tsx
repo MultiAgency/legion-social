@@ -341,17 +341,8 @@ export function AccountProvider({
     if (!a) return false;
     setBusy("revoke");
     try {
-      const pk = getPublicKey(a);
-      let onChain = false;
-      if (pk) {
-        try {
-          onChain = (await viewAccessKey(a, pk)) !== null;
-        } catch {
-          onChain = true;
-        }
-      }
       // With this account's feed keys, in one approval (docs/LEGION.md §3).
-      await revokePostingKeys(a, onChain ? pk : null, theme);
+      await revokePostingKeys(a, getPublicKey(a), theme);
       finishSignOut(a);
       toast.success("Posting key revoked. Signed out.");
       return true;

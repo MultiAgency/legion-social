@@ -15,8 +15,8 @@ const MINT_URL = "https://nearlegion.com/mint";
  */
 export function NonMemberNotice({ accountId }: { accountId: string }) {
   const { accountId: viewer } = useAccount();
-  const { data } = useQuery(membershipQuery(accountId));
-  // The Legion feed account is a feed, not a person (docs/LEGION.md §3).
+  // The Legion feed account is a feed, not a person: don't ask the chain about it.
+  const { data } = useQuery({ ...membershipQuery(accountId), enabled: accountId !== legionFeed });
   if (!showsNonMemberNotice(data) || accountId === legionFeed) return null;
   return (
     <section role="status" className="flex gap-3 border-b bg-muted/40 px-4 py-3 text-[15px] leading-snug">

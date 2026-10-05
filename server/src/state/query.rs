@@ -7,7 +7,7 @@ use std::collections::BinaryHeap;
 
 pub const MAX_ANCESTORS: usize = 20;
 /// Upper bound on entries inspected per request (keeps worst-case latency bounded).
-const MAX_SCAN: usize = 100_000;
+pub(crate) const MAX_SCAN: usize = 100_000;
 const MAX_NOTIF_ACTORS: usize = 5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,7 +49,7 @@ pub struct NotifGroup {
 }
 
 /// The entries of a seq-sorted slice with `seq < before`, newest first.
-fn newest_first<T>(items: &[(Seq, T)], before: Option<Seq>) -> impl Iterator<Item = &(Seq, T)> {
+pub(crate) fn newest_first<T>(items: &[(Seq, T)], before: Option<Seq>) -> impl Iterator<Item = &(Seq, T)> {
     let end = before.map_or(items.len(), |b| items.partition_point(|e| e.0 < b));
     items[..end].iter().rev()
 }
@@ -61,7 +61,7 @@ impl State {
         post.is_live() && !self.is_hidden(post.key.author)
     }
 
-    fn body(&self, pid: Pid) -> Option<&PostBody> {
+    pub(crate) fn body(&self, pid: Pid) -> Option<&PostBody> {
         self.post(pid).body.as_ref()
     }
 

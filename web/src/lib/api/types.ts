@@ -48,6 +48,8 @@ export interface Profile {
   joined_at: number | null;
   /** NEAR Legion rank; absent for non-members and when the server runs without Legion. */
   rank?: Rank;
+  /** Posts were sent to this account as a feed (docs/LEGION.md §3); absent otherwise. */
+  has_feed?: boolean;
   viewer?: ViewerFollowFlags;
 }
 

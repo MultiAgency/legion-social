@@ -101,7 +101,7 @@ async function walletFor(accountId: string, theme?: "dark" | "light"): Promise<W
   return selector.wallet();
 }
 
-/** One wallet approval for `actions` on the account itself (also used by lib/legion/feed-send). */
+/** One wallet approval for `actions` on the account itself (also used by lib/legion). */
 export async function send(accountId: string, actions: Action[], theme?: "dark" | "light") {
   const wallet = await walletFor(accountId, theme);
   try {

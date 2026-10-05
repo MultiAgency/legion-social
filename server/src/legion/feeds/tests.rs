@@ -406,3 +406,20 @@ fn the_channel_param_is_ignored_with_legion_off() {
     assert!(legion_channel.hashtag(&on, "near", None, 10).unwrap().is_empty());
     assert!(bad_channel.hashtag(&on, "near", None, 10).is_err());
 }
+
+#[test]
+fn profiles_say_whether_an_account_has_a_feed() {
+    use crate::api::dto::Ctx;
+    let mut state = legion_state();
+    apply(&mut state, block(1, vec![("a.near", Some("legion"), json!({"post/1": {"text": "hi"}}))]));
+    let ctx = Ctx { state: &state, viewer: None, gateway: "https://gw", site_hosts: &[], unfurl: None };
+    let feed = serde_json::to_value(ctx.profile("legion", state.aid("legion"))).unwrap();
+    assert_eq!(feed["has_feed"], true);
+    // Absent, not false, on every other profile.
+    let author = serde_json::to_value(ctx.profile("a.near", state.aid("a.near"))).unwrap();
+    assert!(author.get("has_feed").is_none());
+    // With Legion off there are no feeds at all.
+    let mut off = State::new();
+    off.apply_block(&block(1, vec![("a.near", None, json!({"post/1": {"text": "hi"}}))]));
+    assert!(!off.has_feed("legion"));
+}
