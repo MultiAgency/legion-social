@@ -5,15 +5,16 @@ import { useAccount } from "@/components/providers/account-provider";
 import { Composer } from "@/components/composer/composer";
 import { Feed } from "@/components/feed/feed";
 import { SignInHero } from "@/components/home/sign-in-hero";
-import { HeaderTabs, PageHeader } from "@/components/shell/page-header";
+import { PageHeader } from "@/components/shell/page-header";
 import type { FeedSpec, HomeTab } from "@/lib/api/queries";
 import { destinationFor, homeFeedId, type HomeFeedId } from "@/lib/legion/home-feeds";
 import { FeedAbout, useCanPost } from "./feed-about";
+import { FeedOrder } from "./feed-order";
 import { FeedSwitcher } from "./feed-switcher";
 
 /**
  * Home with feeds to switch between (docs/LEGION.md §4): Everyone keeps upstream's For you /
- * Following / Latest; Legion, .agency and Builders are newest first. Each feed says who posts
+ * Following / Latest, as a smaller control under the switcher; Legion, .agency and Builders are newest first. Each feed says who posts
  * there, and the post box shows only to those who can.
  */
 export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: FeedSpec; onActiveClick: () => void }) {
@@ -25,20 +26,20 @@ export function HomeFeeds({ tab, spec, onActiveClick }: { tab: HomeTab; spec: Fe
   return (
     <>
       <PageHeader title="Home" brandOnMobile>
+        <FeedSwitcher current={id} />
         {id === "everyone" && (
-          <HeaderTabs
-            replace
+          <FeedOrder
             onActiveClick={onActiveClick}
-            tabs={[
+            options={[
               { href: "/", label: "For you", active: tab === "for_you" },
               ...(accountId ? [{ href: "/?feed=following", label: "Following", active: tab === "following" }] : []),
               { href: "/?feed=latest", label: "Latest", active: tab === "latest" },
             ]}
           />
         )}
-        <FeedSwitcher current={id} />
       </PageHeader>
-      <FeedAbout id={id} canPost={canPost} />
+      {/* Signed out on Everyone, the sign-in hero below already says how to post. */}
+      <FeedAbout id={id} canPost={!accountId && id === "everyone" ? undefined : canPost} />
       {!accountId ? (
         id === "everyone" && <SignInHero />
       ) : (

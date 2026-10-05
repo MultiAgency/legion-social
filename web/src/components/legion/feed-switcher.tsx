@@ -17,7 +17,7 @@ export function FeedIcon({ id, className }: { id: HomeFeedId; className?: string
 /** The home feeds, as a row of pills (docs/LEGION.md §4). Everyone links to `/`, the others to `?feed=`. */
 export function FeedSwitcher({ current }: { current: HomeFeedId }) {
   return (
-    <nav aria-label="Feeds" className="scrollbar-none flex gap-2 overflow-x-auto px-4 pb-2.5 pt-1">
+    <nav aria-label="Feeds" className="scrollbar-none flex gap-2 overflow-x-auto px-4 pb-2.5 pt-1.5">
       {HOME_FEEDS.map((f) => {
         const active = f.id === current;
         return (
